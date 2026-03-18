@@ -2,27 +2,15 @@ import type { CharacterDefinitionInput } from "../shared/domain/rawDefinitions";
 
 export const rawCharacters: CharacterDefinitionInput[] = [
   {
-    id: "runner",
-    name: "Runner",
-    description: "Fast chassis with lower armor for aggressive movement.",
+    id: "base-adventurer",
+    name: "Base Adventurer",
+    description: "Baseline character for movement, combat, and resource tuning.",
     stats: {
-      moveSpeed: 8.5,
-      turnSpeed: 6.2,
-      armor: 70,
-      fireCooldownMs: 700,
+      moveSpeed: 5,
+      turnSpeed: 5,
+      armor: 100,
+      fireCooldownMs: 800,
     },
-    loadout: ["burst-shot"],
-  },
-  {
-    id: "bulwark",
-    name: "Bulwark",
-    description: "Heavy frame that absorbs damage and controls lanes.",
-    stats: {
-      moveSpeed: 6.2,
-      turnSpeed: 4.8,
-      armor: 120,
-      fireCooldownMs: 950,
-    },
-    loadout: ["shield-pulse"],
+    loadout: ["burst-shot", "shield-pulse"],
   },
 ];

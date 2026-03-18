@@ -2,6 +2,7 @@ import type {
   GeneratedMapLayoutDefinition,
   MapArchetype,
   MapDefinition,
+  MapDensity,
   MapTemplateDefinition,
   SpawnPoint,
   TilePoint,
@@ -19,16 +20,26 @@ const archetypeTuning: Record<MapArchetype, ArchetypeTuning> = {
   shattered: {
     wallTargetRatio: 0.16,
     segmentMinLength: 1,
-    segmentMaxLength: 2,
-    minSpawnPathDistance: 8,
+    segmentMaxLength: 3,
+    minSpawnPathDistance: 14,
   },
   enclosed: {
     wallTargetRatio: 0.26,
     segmentMinLength: 2,
-    segmentMaxLength: 4,
-    minSpawnPathDistance: 10,
+    segmentMaxLength: 5,
+    minSpawnPathDistance: 18,
   },
 };
+
+const densityMultiplier: Record<MapDensity, number> = {
+  sparse: 0.8,
+  standard: 1,
+  dense: 1.2,
+};
+
+export interface MapBuildOptions {
+  density?: MapDensity;
+}
 
 function randomInt(maxExclusive: number): number {
   return Math.floor(Math.random() * maxExclusive);
@@ -53,7 +64,7 @@ function buildCoordinate(tile: TilePoint, tileSize: number): SpawnPoint {
 }
 
 function isWalkable(grid: string[], tile: TilePoint): boolean {
-  return grid[tile.row][tile.column] !== "#";
+  return grid[tile.row]?.[tile.column] !== "#";
 }
 
 function collectWalkableTiles(grid: string[]): TilePoint[] {
@@ -157,7 +168,9 @@ function hasDirectLineOfSight(
 }
 
 function hasSpawnCover(grid: string[], tile: TilePoint): boolean {
-  return neighbors(tile).some((neighbor) => grid[neighbor.row][neighbor.column] === "#");
+  return neighbors(tile).some(
+    (neighbor) => grid[neighbor.row]?.[neighbor.column] === "#",
+  );
 }
 
 function buildBorderedGrid(columns: number, rows: number): string[][] {
@@ -198,14 +211,19 @@ function countWalls(grid: string[][]): number {
   return grid.flat().filter((cell) => cell === "#").length;
 }
 
-function generateGrid(layout: GeneratedMapLayoutDefinition): string[] {
+function generateGrid(
+  layout: GeneratedMapLayoutDefinition,
+  density: MapDensity,
+): string[] {
   const tuning = archetypeTuning[layout.archetype];
   const grid = buildBorderedGrid(layout.columns, layout.rows);
   const totalTiles = layout.columns * layout.rows;
-  const targetWalls = Math.floor(totalTiles * tuning.wallTargetRatio);
+  const targetWalls = Math.floor(
+    totalTiles * tuning.wallTargetRatio * densityMultiplier[density],
+  );
   let attempts = 0;
 
-  while (countWalls(grid) < targetWalls && attempts < totalTiles * 6) {
+  while (countWalls(grid) < targetWalls && attempts < totalTiles * 8) {
     const row = randomInt(layout.rows - 2) + 1;
     const column = randomInt(layout.columns - 2) + 1;
     const length =
@@ -237,10 +255,7 @@ function pickSpawnTiles(
       }
 
       const distance = shortestPathLength(grid, spawnTile, candidate);
-
-      return (
-        distance !== null && distance >= tuning.minSpawnPathDistance
-      );
+      return distance !== null && distance >= tuning.minSpawnPathDistance;
     });
 
     if (!fitsAllSelected) {
@@ -273,7 +288,10 @@ function buildTilesFromGrid(grid: string[]): {
   return { wallTiles };
 }
 
-function buildStaticMap(template: MapTemplateDefinition): MapDefinition {
+function buildStaticMap(
+  template: MapTemplateDefinition,
+  density: MapDensity,
+): MapDefinition {
   invariant(template.layout.type === "static", "Expected static map layout");
 
   const { wallTiles } = buildTilesFromGrid(template.layout.grid);
@@ -284,6 +302,7 @@ function buildStaticMap(template: MapTemplateDefinition): MapDefinition {
     name: template.name,
     tileSize: template.tileSize,
     archetype: "static",
+    density,
     maxPlayers: spawnTiles.length,
     grid: template.layout.grid,
     size: {
@@ -297,11 +316,14 @@ function buildStaticMap(template: MapTemplateDefinition): MapDefinition {
   };
 }
 
-function buildGeneratedMap(template: MapTemplateDefinition): MapDefinition {
+function buildGeneratedMap(
+  template: MapTemplateDefinition,
+  density: MapDensity,
+): MapDefinition {
   invariant(template.layout.type === "generated", "Expected generated map layout");
 
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const grid = generateGrid(template.layout);
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const grid = generateGrid(template.layout, density);
     const spawnTiles = pickSpawnTiles(grid, template.layout);
 
     if (spawnTiles.length !== template.layout.maxPlayers) {
@@ -315,6 +337,7 @@ function buildGeneratedMap(template: MapTemplateDefinition): MapDefinition {
       name: template.name,
       tileSize: template.tileSize,
       archetype: template.layout.archetype,
+      density,
       maxPlayers: template.layout.maxPlayers,
       grid,
       size: {
@@ -333,10 +356,16 @@ function buildGeneratedMap(template: MapTemplateDefinition): MapDefinition {
 
 export function buildMapFromTemplate(
   template: MapTemplateDefinition,
+  options: MapBuildOptions = {},
 ): MapDefinition {
+  const density =
+    template.layout.type === "generated"
+      ? options.density ?? template.layout.defaultDensity
+      : options.density ?? "standard";
+
   if (template.layout.type === "static") {
-    return buildStaticMap(template);
+    return buildStaticMap(template, density);
   }
 
-  return buildGeneratedMap(template);
+  return buildGeneratedMap(template, density);
 }

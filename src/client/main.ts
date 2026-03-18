@@ -1,5 +1,8 @@
 import "./styles.css";
 
+import { bindInput } from "./game/bindInput";
+import { createGameSession, tickSession } from "./game/gameSession";
+import { renderGame } from "./game/renderGame";
 import { loadCatalog } from "./services/catalogSource";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -15,71 +18,29 @@ async function bootstrap() {
     mode: "embedded",
     localServerUrl: "http://localhost:3001",
   });
+  const session = createGameSession(catalog);
 
-  appRoot.innerHTML = `
-    <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">Static Client + Optional Local Server</p>
-        <h1>Maze Tanks</h1>
-        <p class="lede">
-          Tank Trouble-style scaffold with data-driven characters, maps, and items.
-        </p>
-      </section>
+  const render = () => {
+    appRoot.innerHTML = renderGame(session);
+  };
 
-      <section class="panel">
-        <h2>Game Modes</h2>
-        <div class="cards">
-          <article class="card">
-            <h3>Player vs AI</h3>
-            <p>Runs entirely in the browser. Safe for static hosting.</p>
-          </article>
-          <article class="card">
-            <h3>Local Host</h3>
-            <p>Swap the catalog source to localhost for future multiplayer sessions.</p>
-          </article>
-        </div>
-      </section>
+  render();
+  bindInput(session, render);
 
-      <section class="panel">
-        <h2>Catalog Preview</h2>
-        <div class="cards">
-          <article class="card">
-            <h3>Characters</h3>
-            <ul>${catalog.characters
-              .map(
-                (character) =>
-                  `<li><strong>${character.name}</strong> · speed ${character.stats.moveSpeed} · armor ${character.stats.armor}</li>`,
-              )
-              .join("")}</ul>
-          </article>
-          <article class="card">
-            <h3>Maps</h3>
-            ${catalog.maps
-              .map(
-                (map) => `
-                  <div class="map-preview">
-                    <p>
-                      <strong>${map.name}</strong> · ${map.archetype} · ${map.size.columns}x${map.size.rows} · players ${map.maxPlayers}
-                    </p>
-                    <pre>${map.grid.join("\n")}</pre>
-                  </div>
-                `,
-              )
-              .join("")}
-          </article>
-          <article class="card">
-            <h3>Items</h3>
-            <ul>${catalog.items
-              .map(
-                (item) =>
-                  `<li><strong>${item.name}</strong> · ${item.kind} · rarity ${item.rarity}</li>`,
-              )
-              .join("")}</ul>
-          </article>
-        </div>
-      </section>
-    </main>
-  `;
+  let lastTickAt = performance.now();
+
+  function loop(now: number) {
+    const deltaMs = now - lastTickAt;
+    lastTickAt = now;
+
+    if (tickSession(session, deltaMs)) {
+      render();
+    }
+
+    window.requestAnimationFrame(loop);
+  }
+
+  window.requestAnimationFrame(loop);
 }
 
 void bootstrap();

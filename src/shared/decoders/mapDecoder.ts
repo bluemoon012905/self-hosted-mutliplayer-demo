@@ -43,6 +43,7 @@ function decodeGeneratedLayout(
     columns: layout.columns,
     rows: layout.rows,
     maxPlayers: layout.maxPlayers,
+    defaultDensity: layout.defaultDensity,
   };
 }
 

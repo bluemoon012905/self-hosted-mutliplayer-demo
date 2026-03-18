@@ -1,4 +1,4 @@
-import type { ItemKind, ItemRarity, MapArchetype } from "./gameTypes";
+import type { ItemKind, ItemRarity, MapArchetype, MapDensity } from "./gameTypes";
 
 export interface CharacterDefinitionInput {
   id: string;
@@ -45,10 +45,11 @@ export interface MapDefinitionInput {
         grid: string[];
       }
     | {
-        type: "generated";
-        archetype: MapArchetype;
-        columns: number;
-        rows: number;
-        maxPlayers: number;
+      type: "generated";
+      archetype: MapArchetype;
+      columns: number;
+      rows: number;
+      maxPlayers: number;
+      defaultDensity: MapDensity;
       };
 }

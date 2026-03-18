@@ -5,6 +5,9 @@ export type MapId = string;
 export type ItemKind = "weapon-mod" | "active" | "passive";
 export type ItemRarity = "common" | "rare" | "epic";
 export type MapArchetype = "shattered" | "enclosed";
+export type MapDensity = "sparse" | "standard" | "dense";
+export type FacingDirection = "up" | "down" | "left" | "right";
+export type AttackSlot = "left" | "center" | "right";
 
 export interface CharacterStats {
   moveSpeed: number;
@@ -62,6 +65,7 @@ export interface GeneratedMapLayoutDefinition {
   columns: number;
   rows: number;
   maxPlayers: number;
+  defaultDensity: MapDensity;
 }
 
 export type MapLayoutDefinition =
@@ -80,6 +84,7 @@ export interface MapDefinition {
   name: string;
   tileSize: number;
   archetype: MapArchetype | "static";
+  density: MapDensity;
   maxPlayers: number;
   grid: string[];
   size: {
@@ -95,10 +100,36 @@ export interface MapDefinition {
 export interface GameCatalog {
   characters: CharacterDefinition[];
   items: ItemDefinition[];
+  mapTemplates: MapTemplateDefinition[];
   maps: MapDefinition[];
   indexes: {
     charactersById: Record<CharacterId, CharacterDefinition>;
     itemsById: Record<ItemId, ItemDefinition>;
     mapsById: Record<MapId, MapDefinition>;
+    mapTemplatesById: Record<MapId, MapTemplateDefinition>;
   };
+}
+
+export interface PlayerStats {
+  health: {
+    max: number;
+    regenPerSecond: number;
+  };
+  stamina: {
+    max: number;
+    regenPerSecond: number;
+  };
+  mana: {
+    max: number;
+    regenPerSecond: number;
+  };
+  speed: number;
+}
+
+export interface PlayerDefinition {
+  id: string;
+  name: string;
+  characterId: CharacterId;
+  stats: PlayerStats;
+  inventory: ItemId[];
 }
