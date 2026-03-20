@@ -161,9 +161,9 @@ h1 {
 .arena-grid {
   position: relative;
   width: min(100%, var(--arena-width));
-  height: min(calc(100vh - 180px), var(--arena-height));
+  height: min(calc(100vh - 150px), var(--arena-height));
   max-width: 100%;
-  min-height: 420px;
+  min-height: 500px;
   padding: 18px;
   border-radius: 30px;
   background:
@@ -191,8 +191,8 @@ h1 {
 .arena-surface {
   position: relative;
   width: min(100%, var(--arena-width));
-  height: min(calc(100vh - 216px), var(--arena-height));
-  min-height: 380px;
+  height: min(calc(100vh - 186px), var(--arena-height));
+  min-height: 460px;
   overflow: hidden;
   border-radius: 22px;
   background:

@@ -6,6 +6,7 @@ export type ItemKind = "weapon-mod" | "active" | "passive";
 export type ItemRarity = "common" | "rare" | "epic";
 export type MapArchetype = "shattered" | "enclosed";
 export type MapDensity = "sparse" | "standard" | "dense";
+export type MapLayoutSize = "small" | "medium" | "large";
 export type FacingDirection = "up" | "down" | "left" | "right";
 export type AttackSlot = "left" | "center" | "right";
 

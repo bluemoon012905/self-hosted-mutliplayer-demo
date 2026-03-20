@@ -8,8 +8,8 @@ export const rawMaps: MapDefinitionInput[] = [
     layout: {
       type: "generated",
       archetype: "shattered",
-      columns: 33,
-      rows: 21,
+      columns: 66,
+      rows: 42,
       maxPlayers: 4,
       defaultDensity: "sparse",
     },
@@ -21,8 +21,8 @@ export const rawMaps: MapDefinitionInput[] = [
     layout: {
       type: "generated",
       archetype: "enclosed",
-      columns: 37,
-      rows: 23,
+      columns: 74,
+      rows: 46,
       maxPlayers: 4,
       defaultDensity: "dense",
     },

@@ -2,9 +2,9 @@ import type { TilePoint } from "../../shared/domain/gameTypes";
 import { getPlayerTile } from "./gameSession";
 import type { GameSession } from "./runtimeTypes";
 
-const viewRadiusColumns = 11;
-const viewRadiusRows = 7;
-const renderCellSize = 52;
+const viewRadiusColumns = 9;
+const viewRadiusRows = 6;
+const renderCellSize = 66;
 const viewportColumns = viewRadiusColumns * 2 + 1;
 const viewportRows = viewRadiusRows * 2 + 1;
 
@@ -323,6 +323,34 @@ function renderHud(session: GameSession): string {
 function renderMapGenerationPanel(session: GameSession): string {
   const selectedTemplate =
     session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
+  const layoutSizeControls =
+    selectedTemplate?.layout.type === "generated"
+      ? `
+          <div class="selector-group">
+            <p class="eyebrow">Layout Size</p>
+            <div class="selector-row">
+              ${session.availableLayoutSizes
+                .map((layoutSize) => {
+                  const isActive = session.selectedLayoutSize === layoutSize;
+
+                  return `
+                    <button
+                      class="selector-button${isActive ? " is-active" : ""}"
+                      data-map-layout-size="${layoutSize}"
+                      type="button"
+                    >
+                      ${layoutSize}
+                    </button>
+                  `;
+                })
+                .join("")}
+            </div>
+            <p class="selector-meta">
+              Small is 4x less area than medium. Large is 4x more area.
+            </p>
+          </div>
+        `
+      : "";
   const densityControls =
     selectedTemplate?.layout.type === "generated"
       ? `
@@ -381,9 +409,10 @@ function renderMapGenerationPanel(session: GameSession): string {
             .join("")}
         </div>
         <p class="selector-meta">
-          ${session.map.archetype} archetype · ${session.map.maxPlayers} spawns
+          ${session.map.archetype} archetype · ${session.selectedLayoutSize} · ${session.map.maxPlayers} spawns
         </p>
       </div>
+      ${layoutSizeControls}
       ${densityControls}
       <div class="selector-group">
         <button class="selector-button selector-button-wide" data-map-reroll type="button">

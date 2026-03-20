@@ -5,6 +5,7 @@ import type {
   ItemDefinition,
   MapDensity,
   MapDefinition,
+  MapLayoutSize,
   MapTemplateDefinition,
   PlayerDefinition,
 } from "../../shared/domain/gameTypes";
@@ -37,7 +38,9 @@ export interface GameSession {
   catalog: GameCatalog;
   selectedMapTemplateId: string;
   selectedDensity: MapDensity;
+  selectedLayoutSize: MapLayoutSize;
   availableDensities: MapDensity[];
+  availableLayoutSizes: MapLayoutSize[];
   map: MapDefinition;
   player: PlayerRuntime;
   input: {
@@ -53,4 +56,5 @@ export interface GameSession {
 export interface MapSelectorState {
   selectedTemplate: MapTemplateDefinition;
   selectedDensity: MapDensity;
+  selectedLayoutSize: MapLayoutSize;
 }

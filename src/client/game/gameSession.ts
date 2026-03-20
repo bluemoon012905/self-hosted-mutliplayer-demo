@@ -6,6 +6,7 @@ import type {
   GameCatalog,
   ItemDefinition,
   MapDensity,
+  MapLayoutSize,
   MapTemplateDefinition,
   TilePoint,
 } from "../../shared/domain/gameTypes";
@@ -82,14 +83,17 @@ export function createGameSession(catalog: GameCatalog): GameSession {
     template.layout.type === "generated"
       ? template.layout.defaultDensity
       : "standard";
-  const map = buildMapFromTemplate(template, { density });
+  const layoutSize: MapLayoutSize = "medium";
+  const map = buildMapFromTemplate(template, { density, layoutSize });
   const player = buildPlayer(catalog, map);
 
   return {
     catalog,
     selectedMapTemplateId: template.id,
     selectedDensity: density,
+    selectedLayoutSize: layoutSize,
     availableDensities: ["sparse", "standard", "dense"],
+    availableLayoutSizes: ["small", "medium", "large"],
     map,
     player,
     input: {
@@ -249,6 +253,14 @@ export function setMapDensity(
   rerollMap(session);
 }
 
+export function setMapLayoutSize(
+  session: GameSession,
+  layoutSize: MapLayoutSize,
+): void {
+  session.selectedLayoutSize = layoutSize;
+  rerollMap(session);
+}
+
 export function rerollMap(session: GameSession): void {
   const template =
     session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
@@ -259,6 +271,7 @@ export function rerollMap(session: GameSession): void {
 
   const map = buildMapFromTemplate(template, {
     density: session.selectedDensity,
+    layoutSize: session.selectedLayoutSize,
   });
   const spawnTile = pickRandomTile(map.spawnTiles);
   const spawnPosition = tileCenter(map, spawnTile);

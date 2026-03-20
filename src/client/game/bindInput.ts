@@ -1,6 +1,7 @@
 import {
   attack,
   rerollMap,
+  setMapLayoutSize,
   selectMapTemplate,
   setMovementKeyState,
   setMapDensity,
@@ -20,7 +21,7 @@ export function bindInput(
     }
 
     const actionNode = target.closest<HTMLElement>(
-      "[data-map-template], [data-map-density], [data-map-reroll], [data-fullscreen-toggle]",
+      "[data-map-template], [data-map-density], [data-map-layout-size], [data-map-reroll], [data-fullscreen-toggle]",
     );
 
     if (!actionNode) {
@@ -37,6 +38,15 @@ export function bindInput(
       setMapDensity(
         session,
         actionNode.dataset.mapDensity as GameSession["selectedDensity"],
+      );
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.mapLayoutSize) {
+      setMapLayoutSize(
+        session,
+        actionNode.dataset.mapLayoutSize as GameSession["selectedLayoutSize"],
       );
       render();
       return;
