@@ -27,6 +27,9 @@ export interface PlayerRuntime {
   radius: number;
   facing: FacingDirection;
   inventoryOpen: boolean;
+  isMoving: boolean;
+  movementSpeed: number;
+  walkCycle: number;
   role: PlayerRole;
   spriteKey: string;
   emote: string;
@@ -46,6 +49,7 @@ export interface GameSession {
   selectedLayoutSize: MapLayoutSize;
   availableDensities: MapDensity[];
   availableLayoutSizes: MapLayoutSize[];
+  availableSpriteKeys: string[];
   map: MapDefinition;
   player: PlayerRuntime;
   input: {

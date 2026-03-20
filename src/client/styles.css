@@ -50,6 +50,11 @@ body::before {
   align-items: start;
 }
 
+.control-stack {
+  display: grid;
+  gap: 12px;
+}
+
 .hero,
 .panel {
   margin-bottom: 24px;
@@ -250,7 +255,8 @@ h1 {
   position: absolute;
   z-index: 2;
   left: 0;
-  transform: translateX(-50%);
+  transform: translateX(-50%) rotate(var(--wobble-rotation, 0deg));
+  transform-origin: 50% 88%;
   object-fit: contain;
   object-position: center bottom;
   filter:
@@ -259,7 +265,7 @@ h1 {
 }
 
 .arena-player-overlay.is-facing-left .arena-player-sprite {
-  transform: translateX(-50%) scaleX(-1);
+  transform: translateX(-50%) scaleX(-1) rotate(var(--wobble-rotation, 0deg));
 }
 
 .arena-player-emote {
@@ -403,6 +409,78 @@ h1 {
 .selector-button-wide {
   width: 100%;
   margin-top: 4px;
+}
+
+.character-preview {
+  margin-bottom: 16px;
+}
+
+.character-preview-stage {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(99, 209, 214, 0.14), transparent 45%),
+    linear-gradient(180deg, rgba(17, 29, 35, 0.96), rgba(8, 15, 18, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.character-preview-image {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+}
+
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.character-card {
+  appearance: none;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.character-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(99, 209, 214, 0.35);
+}
+
+.character-card.is-active {
+  border-color: rgba(99, 209, 214, 0.7);
+  background: rgba(99, 209, 214, 0.12);
+}
+
+.character-card-stage {
+  display: grid;
+  place-items: center;
+  min-height: 82px;
+  border-radius: 12px;
+  background: rgba(8, 14, 18, 0.66);
+}
+
+.character-card-image {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.character-card-label {
+  text-transform: capitalize;
+  font-size: 0.86rem;
 }
 
 .card {

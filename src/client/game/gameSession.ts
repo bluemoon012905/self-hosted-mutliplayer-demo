@@ -18,6 +18,15 @@ const attackLabelBySlot: Record<AttackSlot, string> = {
   right: "Right-angle shot",
 };
 const playerHitboxRadiusRatio = 0.42;
+const availableSpriteKeys = [
+  "turtle_glasses",
+  "turtle_cowboy",
+  "turtle_frog",
+  "turtle_scholar",
+  "turtle_cheese",
+  "turtle_poop",
+  "turtle_scropion",
+] as const;
 
 function pickRandomTile<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
@@ -75,6 +84,9 @@ function buildPlayer(
     radius: map.tileSize * playerHitboxRadiusRatio,
     facing: "right",
     inventoryOpen: false,
+    isMoving: false,
+    movementSpeed: 0,
+    walkCycle: 0,
     role: "me",
     spriteKey: "turtle_glasses",
     emote: "😎",
@@ -98,6 +110,7 @@ export function createGameSession(catalog: GameCatalog): GameSession {
     selectedLayoutSize: layoutSize,
     availableDensities: ["sparse", "standard", "dense"],
     availableLayoutSizes: ["small", "medium", "large"],
+    availableSpriteKeys: [...availableSpriteKeys],
     map,
     player,
     input: {
@@ -187,12 +200,12 @@ function updateFacing(session: GameSession, xAxis: number, yAxis: number): void 
   session.player.facing = yAxis >= 0 ? "down" : "up";
 }
 
-function movePlayerContinuously(session: GameSession, deltaMs: number): boolean {
+function movePlayerContinuously(session: GameSession, deltaMs: number): number {
   const xAxis = Number(session.input.right) - Number(session.input.left);
   const yAxis = Number(session.input.down) - Number(session.input.up);
 
   if (xAxis === 0 && yAxis === 0) {
-    return false;
+    return 0;
   }
 
   const length = Math.hypot(xAxis, yAxis) || 1;
@@ -208,9 +221,9 @@ function movePlayerContinuously(session: GameSession, deltaMs: number): boolean 
   updateFacing(session, normalizedX, normalizedY);
   movePlayerAxis(session, nextX, nextY);
 
-  return (
-    previousX !== session.player.position.x ||
-    previousY !== session.player.position.y
+  return Math.hypot(
+    session.player.position.x - previousX,
+    session.player.position.y - previousY,
   );
 }
 
@@ -265,6 +278,17 @@ export function setMapLayoutSize(
   rerollMap(session);
 }
 
+export function setPlayerSprite(
+  session: GameSession,
+  spriteKey: string,
+): void {
+  if (!session.availableSpriteKeys.includes(spriteKey)) {
+    return;
+  }
+
+  session.player.spriteKey = spriteKey;
+}
+
 export function rerollMap(session: GameSession): void {
   const template =
     session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
@@ -285,6 +309,9 @@ export function rerollMap(session: GameSession): void {
   session.player.position = spawnPosition;
   session.player.radius = map.tileSize * playerHitboxRadiusRatio;
   session.player.facing = "right";
+  session.player.isMoving = false;
+  session.player.movementSpeed = 0;
+  session.player.walkCycle = 0;
   session.player.resources = {
     health: session.player.definition.stats.health.max,
     stamina: session.player.definition.stats.stamina.max,
@@ -302,7 +329,19 @@ export function rerollMap(session: GameSession): void {
 
 export function tickSession(session: GameSession, deltaMs: number): boolean {
   const previous = { ...session.player.resources };
-  const moved = movePlayerContinuously(session, deltaMs);
+  const movedDistance = movePlayerContinuously(session, deltaMs);
+  const moved = movedDistance > 0;
+  const maxSpeedPerSecond = session.player.definition.stats.speed * 52;
+  const movementSpeed =
+    deltaMs > 0 ? movedDistance / (deltaMs / 1000) : 0;
+
+  session.player.isMoving = moved;
+  session.player.movementSpeed = movementSpeed;
+
+  if (moved) {
+    session.player.walkCycle +=
+      deltaMs * (movementSpeed / Math.max(maxSpeedPerSecond, 1));
+  }
 
   session.player.resources.health = regenerateResource(
     session.player.resources.health,

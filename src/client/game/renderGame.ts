@@ -25,6 +25,13 @@ const spriteUrlByKey: Record<string, string> = {
   turtle_scropion: turtleScorpionUrl,
 };
 
+function labelForSprite(spriteKey: string): string {
+  return spriteKey
+    .replace("turtle_", "")
+    .replace("scropion", "scorpion")
+    .replace(/_/g, " ");
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
@@ -162,13 +169,21 @@ function renderPlayerOverlay(
     ((session.player.radius * 3.25) * renderCellSize) / session.map.tileSize;
   const spriteHeight =
     ((session.player.radius * 3.7) * renderCellSize) / session.map.tileSize;
-  const spriteTop = -(hitboxHeight * 0.98 + spriteHeight * 0.62);
+  const spriteTop = -(hitboxHeight * 0.98 + spriteHeight * 0.62) + 30;
   const emoteTop = spriteTop - renderCellSize * 0.72;
   const roleClass = `player-role-${session.player.role}`;
   const spriteUrl =
     spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
   const facingClass =
-    session.player.facing === "left" ? "is-facing-left" : "is-facing-right";
+    session.player.facing === "right" ? "is-facing-left" : "is-facing-right";
+  const maxSpeedPerSecond = session.player.definition.stats.speed * 52;
+  const speedRatio = Math.min(
+    1,
+    session.player.movementSpeed / Math.max(maxSpeedPerSecond, 1),
+  );
+  const wobbleDegrees = session.player.isMoving
+    ? Math.sin(session.player.walkCycle / 70) * 5 * speedRatio
+    : 0;
 
   return `
     <div
@@ -182,7 +197,7 @@ function renderPlayerOverlay(
         class="arena-player-sprite"
         src="${spriteUrl}"
         alt="${session.player.definition.name}"
-        style="width:${spriteWidth}px; height:${spriteHeight}px; top:${spriteTop}px;"
+        style="width:${spriteWidth}px; height:${spriteHeight}px; top:${spriteTop}px; --wobble-rotation:${wobbleDegrees}deg;"
       />
       <div
         class="arena-player-hitbox"
@@ -466,13 +481,67 @@ function renderMapGenerationPanel(session: GameSession): string {
   `;
 }
 
+function renderCharacterPanel(session: GameSession): string {
+  const selectedSpriteUrl =
+    spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
+
+  return `
+    <aside class="panel control-panel">
+      <div class="selector-group">
+        <p class="eyebrow">Character</p>
+        <h3>Driver Select</h3>
+        <p class="selector-meta">
+          Pick the turtle skin used for your player sprite.
+        </p>
+      </div>
+      <div class="character-preview">
+        <div class="character-preview-stage">
+          <img
+            class="character-preview-image"
+            src="${selectedSpriteUrl}"
+            alt="${session.player.spriteKey}"
+          />
+        </div>
+      </div>
+      <div class="character-grid">
+        ${session.availableSpriteKeys
+          .map((spriteKey) => {
+            const spriteUrl = spriteUrlByKey[spriteKey] ?? spriteUrlByKey.turtle_glasses;
+            const isActive = session.player.spriteKey === spriteKey;
+
+            return `
+              <button
+                class="character-card${isActive ? " is-active" : ""}"
+                data-player-sprite="${spriteKey}"
+                type="button"
+              >
+                <span class="character-card-stage">
+                  <img
+                    class="character-card-image"
+                    src="${spriteUrl}"
+                    alt="${labelForSprite(spriteKey)}"
+                  />
+                </span>
+                <span class="character-card-label">${labelForSprite(spriteKey)}</span>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </aside>
+  `;
+}
+
 export function renderGame(session: GameSession): string {
   const isFullscreen = Boolean(document.fullscreenElement);
 
   return `
     <main class="shell">
       <div class="shell-layout">
-        ${renderMapGenerationPanel(session)}
+        <div class="control-stack">
+          ${renderMapGenerationPanel(session)}
+          ${renderCharacterPanel(session)}
+        </div>
         <section class="panel arena-stage" data-arena-root>
           <div class="arena-panel">
             <div class="arena-header">
