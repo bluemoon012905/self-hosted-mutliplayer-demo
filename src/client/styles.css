@@ -240,13 +240,79 @@ h1 {
 .arena-player-overlay {
   position: absolute;
   z-index: 4;
-  transform: translate(-50%, -50%) scale(1.08);
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.arena-player-sprite {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  transform: translateX(-50%);
+  object-fit: contain;
+  object-position: center bottom;
+  filter:
+    drop-shadow(0 16px 18px rgba(0, 0, 0, 0.26))
+    drop-shadow(0 2px 2px rgba(255, 255, 255, 0.08));
+}
+
+.arena-player-overlay.is-facing-left .arena-player-sprite {
+  transform: translateX(-50%) scaleX(-1);
+}
+
+.arena-player-emote {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  transform: translateX(-50%);
+  min-width: 40px;
+  padding: 3px 8px;
   border-radius: 999px;
+  background: rgba(5, 10, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 1.05rem;
+  line-height: 1;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+}
+
+.arena-player-hitbox {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 4px solid color-mix(in srgb, currentColor 78%, white);
   background:
-    radial-gradient(circle at 30% 30%, #effdff 0%, #63d1d6 42%, #1d8892 100%);
+    radial-gradient(circle at 35% 30%, color-mix(in srgb, currentColor 34%, white), transparent 58%),
+    color-mix(in srgb, currentColor 24%, transparent);
   box-shadow:
-    0 0 0 4px rgba(6, 17, 20, 0.65),
-    0 10px 22px rgba(0, 0, 0, 0.28);
+    inset 0 -8px 18px rgba(0, 0, 0, 0.18),
+    0 16px 24px rgba(0, 0, 0, 0.26);
+  opacity: 0.9;
+}
+
+.arena-player-hitbox::after {
+  position: absolute;
+  inset: 14%;
+  content: "";
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.player-role-me {
+  color: #4ea8ff;
+}
+
+.player-role-friend {
+  color: #52d273;
+}
+
+.player-role-enemy {
+  color: #ff6262;
 }
 
 .minimap {

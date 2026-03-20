@@ -1,12 +1,29 @@
 import type { TilePoint } from "../../shared/domain/gameTypes";
 import { getPlayerTile } from "./gameSession";
 import type { GameSession } from "./runtimeTypes";
+import turtleCheeseUrl from "../../../player_sprite/turtle_cheese.png";
+import turtleCowboyUrl from "../../../player_sprite/turtle_cowboy.png";
+import turtleFrogUrl from "../../../player_sprite/turtle_frog.png";
+import turtleGlassesUrl from "../../../player_sprite/turtle_glasses.png";
+import turtlePoopUrl from "../../../player_sprite/turtle_poop.png";
+import turtleScholarUrl from "../../../player_sprite/turtle_scholar.png";
+import turtleScorpionUrl from "../../../player_sprite/turtle_scropion.png";
 
 const viewRadiusColumns = 9;
 const viewRadiusRows = 6;
 const renderCellSize = 66;
 const viewportColumns = viewRadiusColumns * 2 + 1;
 const viewportRows = viewRadiusRows * 2 + 1;
+
+const spriteUrlByKey: Record<string, string> = {
+  turtle_cheese: turtleCheeseUrl,
+  turtle_cowboy: turtleCowboyUrl,
+  turtle_frog: turtleFrogUrl,
+  turtle_glasses: turtleGlassesUrl,
+  turtle_poop: turtlePoopUrl,
+  turtle_scholar: turtleScholarUrl,
+  turtle_scropion: turtleScorpionUrl,
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -138,14 +155,40 @@ function renderPlayerOverlay(
   const top =
     ((session.player.position.y - viewport.originY) / session.map.tileSize) *
     renderCellSize;
-  const diameter =
-    (session.player.radius * 2 * renderCellSize) / session.map.tileSize;
+  const hitboxWidth =
+    ((session.player.radius * 2) * renderCellSize) / session.map.tileSize;
+  const hitboxHeight = hitboxWidth;
+  const spriteWidth =
+    ((session.player.radius * 3.25) * renderCellSize) / session.map.tileSize;
+  const spriteHeight =
+    ((session.player.radius * 3.7) * renderCellSize) / session.map.tileSize;
+  const spriteTop = -(hitboxHeight * 0.98 + spriteHeight * 0.62);
+  const emoteTop = spriteTop - renderCellSize * 0.72;
+  const roleClass = `player-role-${session.player.role}`;
+  const spriteUrl =
+    spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
+  const facingClass =
+    session.player.facing === "left" ? "is-facing-left" : "is-facing-right";
 
   return `
     <div
-      class="arena-player-overlay"
-      style="left:${left}px; top:${top}px; width:${diameter}px; height:${diameter}px;"
-    ></div>
+      class="arena-player-overlay ${roleClass} ${facingClass}"
+      style="left:${left}px; top:${top}px;"
+    >
+      <div class="arena-player-emote" style="top:${emoteTop}px;">
+        ${session.player.emote}
+      </div>
+      <img
+        class="arena-player-sprite"
+        src="${spriteUrl}"
+        alt="${session.player.definition.name}"
+        style="width:${spriteWidth}px; height:${spriteHeight}px; top:${spriteTop}px;"
+      />
+      <div
+        class="arena-player-hitbox"
+        style="width:${hitboxWidth}px; height:${hitboxHeight}px;"
+      ></div>
+    </div>
   `;
 }
 

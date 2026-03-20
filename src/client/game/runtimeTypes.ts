@@ -10,6 +10,8 @@ import type {
   PlayerDefinition,
 } from "../../shared/domain/gameTypes";
 
+export type PlayerRole = "me" | "friend" | "enemy";
+
 export interface PlayerRuntime {
   definition: PlayerDefinition;
   mapId: string;
@@ -25,6 +27,9 @@ export interface PlayerRuntime {
   radius: number;
   facing: FacingDirection;
   inventoryOpen: boolean;
+  role: PlayerRole;
+  spriteKey: string;
+  emote: string;
 }
 
 export interface AttackEvent {

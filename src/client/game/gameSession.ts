@@ -17,6 +17,7 @@ const attackLabelBySlot: Record<AttackSlot, string> = {
   center: "Forward shot",
   right: "Right-angle shot",
 };
+const playerHitboxRadiusRatio = 0.42;
 
 function pickRandomTile<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
@@ -71,9 +72,12 @@ function buildPlayer(
       mana: playerDefinition.stats.mana.max,
     },
     position: spawnPosition,
-    radius: map.tileSize * 0.28,
+    radius: map.tileSize * playerHitboxRadiusRatio,
     facing: "right",
     inventoryOpen: false,
+    role: "me",
+    spriteKey: "turtle_glasses",
+    emote: "😎",
   };
 }
 
@@ -279,7 +283,7 @@ export function rerollMap(session: GameSession): void {
   session.map = map;
   session.player.mapId = map.id;
   session.player.position = spawnPosition;
-  session.player.radius = map.tileSize * 0.28;
+  session.player.radius = map.tileSize * playerHitboxRadiusRatio;
   session.player.facing = "right";
   session.player.resources = {
     health: session.player.definition.stats.health.max,
