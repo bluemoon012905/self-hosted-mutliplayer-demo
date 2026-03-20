@@ -35,6 +35,16 @@ That lets you tweak stats, map layouts, and loadouts without rewriting gameplay 
 - `npm run preview`
 - `npm run dev:server`
 
+## Running the client correctly
+
+Do not open `index.html` through a generic static server or editor plugin server.
+This app's HTML imports `/src/client/main.ts`, which must be transformed by Vite before the browser can execute it.
+
+Use:
+
+- `npm run dev` for local development at `http://localhost:5173`
+- `npm run preview` after `npm run build` to serve the production build
+
 ## Next build steps
 
 - add maze generation

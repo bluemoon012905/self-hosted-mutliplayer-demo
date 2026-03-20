@@ -5,6 +5,8 @@ import type { GameSession } from "./runtimeTypes";
 const viewRadiusColumns = 11;
 const viewRadiusRows = 7;
 const renderCellSize = 52;
+const viewportColumns = viewRadiusColumns * 2 + 1;
+const viewportRows = viewRadiusRows * 2 + 1;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -106,45 +108,35 @@ function buildVisibleTiles(session: GameSession): Set<string> {
 }
 
 function buildViewport(session: GameSession): {
-  minColumn: number;
-  maxColumn: number;
-  minRow: number;
-  maxRow: number;
+  originX: number;
+  originY: number;
+  width: number;
+  height: number;
 } {
-  const playerTile = getPlayerTile(session);
+  const width = viewportColumns * session.map.tileSize;
+  const height = viewportRows * session.map.tileSize;
+  const worldWidth = session.map.size.columns * session.map.tileSize;
+  const worldHeight = session.map.size.rows * session.map.tileSize;
+  const maxOriginX = Math.max(0, worldWidth - width);
+  const maxOriginY = Math.max(0, worldHeight - height);
 
   return {
-    minColumn: clamp(
-      playerTile.column - viewRadiusColumns,
-      0,
-      session.map.size.columns - 1,
-    ),
-    maxColumn: clamp(
-      playerTile.column + viewRadiusColumns,
-      0,
-      session.map.size.columns - 1,
-    ),
-    minRow: clamp(
-      playerTile.row - viewRadiusRows,
-      0,
-      session.map.size.rows - 1,
-    ),
-    maxRow: clamp(
-      playerTile.row + viewRadiusRows,
-      0,
-      session.map.size.rows - 1,
-    ),
+    originX: clamp(session.player.position.x - width / 2, 0, maxOriginX),
+    originY: clamp(session.player.position.y - height / 2, 0, maxOriginY),
+    width,
+    height,
   };
 }
 
-function renderPlayerOverlay(session: GameSession, viewport: ReturnType<typeof buildViewport>): string {
-  const viewportOriginX = viewport.minColumn * session.map.tileSize;
-  const viewportOriginY = viewport.minRow * session.map.tileSize;
+function renderPlayerOverlay(
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
   const left =
-    ((session.player.position.x - viewportOriginX) / session.map.tileSize) *
+    ((session.player.position.x - viewport.originX) / session.map.tileSize) *
     renderCellSize;
   const top =
-    ((session.player.position.y - viewportOriginY) / session.map.tileSize) *
+    ((session.player.position.y - viewport.originY) / session.map.tileSize) *
     renderCellSize;
   const diameter =
     (session.player.radius * 2 * renderCellSize) / session.map.tileSize;
@@ -157,79 +149,154 @@ function renderPlayerOverlay(session: GameSession, viewport: ReturnType<typeof b
   `;
 }
 
+function renderWallSegments(
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
+  const viewportRight = viewport.originX + viewport.width;
+  const viewportBottom = viewport.originY + viewport.height;
+
+  return session.map.wallTiles
+    .map((tile) => {
+      const worldX = tile.column * session.map.tileSize;
+      const worldY = tile.row * session.map.tileSize;
+      const worldRight = worldX + session.map.tileSize;
+      const worldBottom = worldY + session.map.tileSize;
+
+      if (
+        worldRight < viewport.originX ||
+        worldX > viewportRight ||
+        worldBottom < viewport.originY ||
+        worldY > viewportBottom
+      ) {
+        return "";
+      }
+
+      const left =
+        ((worldX - viewport.originX) / session.map.tileSize) * renderCellSize;
+      const top =
+        ((worldY - viewport.originY) / session.map.tileSize) * renderCellSize;
+      const size =
+        (session.map.tileSize / session.map.tileSize) * renderCellSize;
+
+      return `
+        <div
+          class="arena-wall-segment"
+          style="left:${left}px; top:${top}px; width:${size}px; height:${size}px;"
+        ></div>
+      `;
+    })
+    .join("");
+}
+
 function renderArena(session: GameSession): string {
   const viewport = buildViewport(session);
-  const rows: string[] = [];
+  const visibleTiles = buildVisibleTiles(session);
+  const playerTile = getPlayerTile(session);
+  const spawnMarkers = session.map.spawnTiles
+    .filter((tile) => visibleTiles.has(keyOf(tile)))
+    .map((tile) => {
+      const left =
+        ((tile.column * session.map.tileSize - viewport.originX) /
+          session.map.tileSize) *
+          renderCellSize +
+        renderCellSize * 0.5;
+      const top =
+        ((tile.row * session.map.tileSize - viewport.originY) /
+          session.map.tileSize) *
+          renderCellSize +
+        renderCellSize * 0.5;
 
-  for (let row = viewport.minRow; row <= viewport.maxRow; row += 1) {
-    const cells: string[] = [];
+      return `
+        <div
+          class="arena-spawn-marker"
+          style="left:${left}px; top:${top}px;"
+        ></div>
+      `;
+    })
+    .join("");
+  const fogTiles = [...visibleTiles].length
+    ? session.map.grid
+        .flatMap((row, rowIndex) =>
+          [...row].map((_, columnIndex) => ({ column: columnIndex, row: rowIndex })),
+        )
+        .filter((tile) => !visibleTiles.has(keyOf(tile)))
+        .map((tile) => {
+          const worldX = tile.column * session.map.tileSize;
+          const worldY = tile.row * session.map.tileSize;
+          const worldRight = worldX + session.map.tileSize;
+          const worldBottom = worldY + session.map.tileSize;
 
-    for (
-      let column = viewport.minColumn;
-      column <= viewport.maxColumn;
-      column += 1
-    ) {
-      const isSpawnTile = session.map.spawnTiles.some(
-        (tile) => tile.column === column && tile.row === row,
-      );
-      const cell = session.map.grid[row]?.[column] ?? "#";
-      let className = "arena-cell";
+          if (
+            worldRight < viewport.originX ||
+            worldX > viewport.originX + viewport.width ||
+            worldBottom < viewport.originY ||
+            worldY > viewport.originY + viewport.height
+          ) {
+            return "";
+          }
 
-      if (cell === "#") {
-        className += " arena-wall";
-      } else {
-        className += " arena-floor";
-      }
+          const left =
+            ((worldX - viewport.originX) / session.map.tileSize) * renderCellSize;
+          const top =
+            ((worldY - viewport.originY) / session.map.tileSize) * renderCellSize;
 
-      if (isSpawnTile) {
-        className += " arena-spawn";
-      }
+          return `
+            <div
+              class="arena-fog-cell"
+              style="left:${left}px; top:${top}px; width:${renderCellSize}px; height:${renderCellSize}px;"
+            ></div>
+          `;
+        })
+        .join("")
+    : "";
 
-      cells.push(`<div class="${className}"></div>`);
-    }
-
-    rows.push(`<div class="arena-row">${cells.join("")}</div>`);
-  }
-
-  rows.push(renderPlayerOverlay(session, viewport));
-
-  return rows.join("");
+  return `
+    <div class="arena-surface">
+      ${renderWallSegments(session, viewport)}
+      ${spawnMarkers}
+      ${fogTiles}
+      ${renderPlayerOverlay(session, viewport)}
+    </div>
+  `;
 }
 
 function renderMiniMap(session: GameSession): string {
   const visibleTiles = buildVisibleTiles(session);
   const playerTile = getPlayerTile(session);
 
-  return session.map.grid
-    .map((row, rowIndex) => {
-      const cells = [...row]
-        .map((cell, columnIndex) => {
-          const isPlayerTile =
-            playerTile.column === columnIndex && playerTile.row === rowIndex;
-          const isVisible = visibleTiles.has(`${columnIndex},${rowIndex}`);
-          let className = "minimap-cell";
-
-          if (cell === "#") {
-            className += " minimap-wall";
-          } else {
-            className += " minimap-floor";
-          }
-
-          if (isVisible) {
-            className += " minimap-visible";
-          }
-
-          if (isPlayerTile) {
-            className += " minimap-player";
-          }
-
-          return `<div class="${className}"></div>`;
-        })
-        .join("");
-
-      return `<div class="minimap-row" style="--minimap-columns:${session.map.size.columns}">${cells}</div>`;
-    })
-    .join("");
+  return `
+    <div
+      class="minimap-surface"
+      style="--minimap-width:${session.map.size.columns}; --minimap-height:${session.map.size.rows};"
+    >
+      ${session.map.wallTiles
+        .map(
+          (tile) => `
+            <div
+              class="minimap-segment"
+              style="left:${tile.column * 5}px; top:${tile.row * 5}px;"
+            ></div>
+          `,
+        )
+        .join("")}
+      ${session.map.spawnTiles
+        .filter((tile) => visibleTiles.has(keyOf(tile)))
+        .map(
+          (tile) => `
+            <div
+              class="minimap-spawn-marker"
+              style="left:${tile.column * 5 + 1}px; top:${tile.row * 5 + 1}px;"
+            ></div>
+          `,
+        )
+        .join("")}
+      <div
+        class="minimap-player-dot"
+        style="left:${playerTile.column * 5 + 0.5}px; top:${playerTile.row * 5 + 0.5}px;"
+      ></div>
+    </div>
+  `;
 }
 
 function renderHud(session: GameSession): string {
@@ -253,36 +320,113 @@ function renderHud(session: GameSession): string {
   `;
 }
 
+function renderMapGenerationPanel(session: GameSession): string {
+  const selectedTemplate =
+    session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
+  const densityControls =
+    selectedTemplate?.layout.type === "generated"
+      ? `
+          <div class="selector-group">
+            <p class="eyebrow">Density</p>
+            <div class="selector-row">
+              ${session.availableDensities
+                .map((density) => {
+                  const isActive = session.selectedDensity === density;
+
+                  return `
+                    <button
+                      class="selector-button${isActive ? " is-active" : ""}"
+                      data-map-density="${density}"
+                      type="button"
+                    >
+                      ${density}
+                    </button>
+                  `;
+                })
+                .join("")}
+            </div>
+            <p class="selector-meta">
+              Regenerate the current archetype with a different wall density.
+            </p>
+          </div>
+        `
+      : "";
+
+  return `
+    <aside class="panel control-panel">
+      <div class="selector-group">
+        <p class="eyebrow">Map Generation</p>
+        <h3>Map Lab</h3>
+        <p class="selector-meta">
+          Switch archetypes and reroll layouts without leaving the arena.
+        </p>
+      </div>
+      <div class="selector-group">
+        <p class="eyebrow">Template</p>
+        <div class="selector-row">
+          ${session.catalog.mapTemplates
+            .map((template) => {
+              const isActive = template.id === session.selectedMapTemplateId;
+
+              return `
+                <button
+                  class="selector-button${isActive ? " is-active" : ""}"
+                  data-map-template="${template.id}"
+                  type="button"
+                >
+                  ${template.name}
+                </button>
+              `;
+            })
+            .join("")}
+        </div>
+        <p class="selector-meta">
+          ${session.map.archetype} archetype · ${session.map.maxPlayers} spawns
+        </p>
+      </div>
+      ${densityControls}
+      <div class="selector-group">
+        <button class="selector-button selector-button-wide" data-map-reroll type="button">
+          Reroll Layout
+        </button>
+      </div>
+    </aside>
+  `;
+}
+
 export function renderGame(session: GameSession): string {
   const isFullscreen = Boolean(document.fullscreenElement);
 
   return `
     <main class="shell">
-      <section class="panel arena-stage" data-arena-root>
-        <div class="arena-panel">
-          <div class="arena-header">
-            <div>
-              <p class="eyebrow">Arena</p>
-              <h2>${session.map.name}</h2>
-              ${renderHud(session)}
-            </div>
-            <div class="arena-overview">
-              <div class="minimap">
-                ${renderMiniMap(session)}
+      <div class="shell-layout">
+        ${renderMapGenerationPanel(session)}
+        <section class="panel arena-stage" data-arena-root>
+          <div class="arena-panel">
+            <div class="arena-header">
+              <div>
+                <p class="eyebrow">Arena</p>
+                <h2>${session.map.name}</h2>
+                ${renderHud(session)}
               </div>
+              <div class="arena-overview">
+                <div class="minimap">
+                  ${renderMiniMap(session)}
+                </div>
               <p class="arena-meta">
-                ${session.map.archetype} · ${session.map.size.columns}x${session.map.size.rows} · sight window 23x15
-              </p>
-              <button class="selector-button" data-fullscreen-toggle type="button">
-                ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
-              </button>
+                  ${session.map.archetype} · ${session.map.size.columns}x${session.map.size.rows} · free movement viewport
+                </p>
+                <button class="selector-button" data-fullscreen-toggle type="button">
+                  ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
+                </button>
+              </div>
+            </div>
+            <div class="arena-grid" style="--arena-width:${viewportColumns * renderCellSize}px; --arena-height:${viewportRows * renderCellSize}px;">
+              ${renderArena(session)}
             </div>
           </div>
-          <div class="arena-grid" style="--columns:23; --cell-size:${renderCellSize}px;">
-            ${renderArena(session)}
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   `;
 }
