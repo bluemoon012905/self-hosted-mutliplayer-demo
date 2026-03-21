@@ -218,6 +218,7 @@ function renderActorOverlay(
     | "role"
     | "spriteKey"
     | "facing"
+    | "resources"
   >,
   weaponId: string | null | undefined,
   session: GameSession,
@@ -285,12 +286,33 @@ function renderActorOverlay(
       ? actor.blockEffectiveness
       : 0;
   const blockBarTop = spriteTop - 16;
+  const statsTop = blockBarTop - 30;
+  const healthRatio = actor.resources.health / Math.max(actor.definition.stats.health.max, 1);
+  const staminaRatio = actor.resources.stamina / Math.max(actor.definition.stats.stamina.max, 1);
+  const manaRatio = actor.resources.mana / Math.max(actor.definition.stats.mana.max, 1);
 
   return `
     <div
       class="arena-player-overlay ${roleClass} ${facingClass}"
       style="left:${left}px; top:${top}px;"
     >
+      <div class="arena-actor-stats${actor.role === "enemy" ? " is-enemy" : ""}" style="top:${statsTop}px;">
+        <div class="arena-stat-bar is-health">
+          <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, healthRatio * 100))}%;"></div>
+        </div>
+        ${
+          actor.role === "enemy"
+            ? ""
+            : `
+                <div class="arena-stat-bar is-stamina">
+                  <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, staminaRatio * 100))}%;"></div>
+                </div>
+                <div class="arena-stat-bar is-mana">
+                  <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, manaRatio * 100))}%;"></div>
+                </div>
+              `
+        }
+      </div>
       ${
         isBlockingActor
           ? `
@@ -339,6 +361,28 @@ function renderPlayerOverlay(
     session,
     viewport,
   );
+}
+
+function renderGameOverOverlay(session: GameSession): string {
+  if (session.flow !== "gameOver") {
+    return "";
+  }
+
+  return `
+    <div class="game-over-overlay">
+      <div class="game-over-card">
+        <p class="eyebrow">Match Ended</p>
+        <h2>Turtle Down</h2>
+        <p class="selector-meta">
+          ${session.mode === "sandbox" ? "Sandbox run ended." : "Your match has ended."}
+        </p>
+        <div class="game-over-actions">
+          <button class="selector-button is-active" data-play-again type="button">Go Again</button>
+          <button class="selector-button" data-back-menu type="button">Return to Menu</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderEnemies(
@@ -620,6 +664,16 @@ function renderCollapsiblePanel(
 }
 
 function renderMapGenerationPanel(session: GameSession): string {
+  return renderCollapsiblePanel(
+    "mapLab",
+    "Map Generation",
+    "Map Lab",
+    renderMapGenerationControls(session),
+    session.collapsedPanels.mapLab,
+  );
+}
+
+function renderMapGenerationControls(session: GameSession): string {
   const selectedTemplate =
     session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
   const layoutSizeControls =
@@ -679,11 +733,7 @@ function renderMapGenerationPanel(session: GameSession): string {
         `
       : "";
 
-  return renderCollapsiblePanel(
-    "mapLab",
-    "Map Generation",
-    "Map Lab",
-    `
+  return `
       <div class="selector-group">
         <p class="selector-meta">
           Switch archetypes and reroll layouts without leaving the arena.
@@ -719,9 +769,7 @@ function renderMapGenerationPanel(session: GameSession): string {
           Reroll Layout
         </button>
       </div>
-    `,
-    session.collapsedPanels.mapLab,
-  );
+    `;
 }
 
 function renderCharacterPanel(session: GameSession): string {
@@ -901,6 +949,17 @@ function renderModeMenu(): string {
 function renderSetupScreen(session: GameSession): string {
   const weaponItems = getWeaponItems(session);
   const slotLabels = ["Slot 1", "Slot 2"] as const;
+  const mapSetupSection = `
+    <section class="panel inset-panel">
+      <div class="selector-group">
+        <p class="eyebrow">Map Generation</p>
+        <p class="selector-meta">
+          Choose the arena layout before the match starts.
+        </p>
+      </div>
+      ${renderMapGenerationControls(session)}
+    </section>
+  `;
   const enemySection =
     session.mode === "levels"
       ? `
@@ -1000,6 +1059,7 @@ function renderSetupScreen(session: GameSession): string {
               .join("")}
           </div>
         </section>
+        ${mapSetupSection}
         ${enemySection}
         <div class="loadout-columns">
           ${([0, 1] as const)
@@ -1126,6 +1186,7 @@ export function renderGame(session: GameSession): string {
                 </div>
               </div>
               ${renderArena(session)}
+              ${renderGameOverOverlay(session)}
             </div>
           </div>
         </section>

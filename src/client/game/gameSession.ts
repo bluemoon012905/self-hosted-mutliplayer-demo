@@ -1002,6 +1002,15 @@ export function startMatch(session: GameSession): void {
   rerollMap(session);
 }
 
+export function replayMatch(session: GameSession): void {
+  if (!session.mode) {
+    return;
+  }
+
+  session.flow = "match";
+  rerollMap(session);
+}
+
 export function togglePanelCollapse(
   session: GameSession,
   panel: keyof GameSession["collapsedPanels"],
@@ -1118,6 +1127,12 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
     0,
     session.player.attackAnimationRemainingMs - deltaMs,
   );
+
+  if (session.player.resources.health <= 0) {
+    session.flow = "gameOver";
+    session.player.isBlocking = false;
+    return true;
+  }
 
   return (
     moved ||

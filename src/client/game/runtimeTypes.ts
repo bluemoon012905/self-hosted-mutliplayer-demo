@@ -12,7 +12,7 @@ import type {
 
 export type PlayerRole = "me" | "friend" | "enemy";
 export type GameMode = "sandbox" | "levels" | "pvp";
-export type GameFlow = "menu" | "setup" | "match";
+export type GameFlow = "menu" | "setup" | "match" | "gameOver";
 
 export interface PlayerRuntime {
   definition: PlayerDefinition;

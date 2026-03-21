@@ -259,6 +259,7 @@ h1 {
 
 [data-arena-root]:fullscreen .shell-layout {
   grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
 }
 
 [data-arena-root]:fullscreen .control-stack {
@@ -267,10 +268,16 @@ h1 {
 
 [data-arena-root]:fullscreen .arena-stage {
   min-height: calc(100vh - 20px);
+  width: min(100%, 1320px);
+  margin-inline: auto;
 }
 
 [data-arena-root]:fullscreen .arena-grid {
   height: min(calc(100vh - 108px), var(--arena-height));
+}
+
+[data-arena-root]:fullscreen .arena-panel {
+  margin-inline: auto;
 }
 
 .arena-topbar {
@@ -363,6 +370,35 @@ h1 {
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.02),
     0 18px 40px rgba(0, 0, 0, 0.24);
+}
+
+.game-over-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 7, 10, 0.46);
+  backdrop-filter: blur(6px);
+}
+
+.game-over-card {
+  width: min(100%, 420px);
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(10, 18, 23, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  text-align: center;
+}
+
+.game-over-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
 }
 
 .arena-overlay-top {
@@ -499,6 +535,46 @@ h1 {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #f7a531, #effdff);
+}
+
+.arena-actor-stats {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  width: 58px;
+  display: grid;
+  gap: 4px;
+  transform: translateX(-50%);
+}
+
+.arena-actor-stats.is-enemy {
+  width: 52px;
+}
+
+.arena-stat-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(5, 10, 14, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.arena-stat-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.arena-stat-bar.is-health .arena-stat-fill {
+  background: linear-gradient(90deg, #ff6262, #ffd0d0);
+}
+
+.arena-stat-bar.is-stamina .arena-stat-fill {
+  background: linear-gradient(90deg, #52d273, #d6ffd6);
+}
+
+.arena-stat-bar.is-mana .arena-stat-fill {
+  background: linear-gradient(90deg, #4ea8ff, #d4ecff);
 }
 
 .arena-player-weapon {

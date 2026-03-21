@@ -2,6 +2,7 @@ import {
   adjustLevelEnemyCount,
   attack,
   goToMenu,
+  replayMatch,
   rerollMap,
   setMapLayoutSize,
   setPlayerSprite,
@@ -33,7 +34,7 @@ export function bindInput(
     }
 
     const actionNode = target.closest<HTMLElement>(
-      "[data-mode-select], [data-back-menu], [data-start-match], [data-enemy-weapon], [data-enemy-adjust], [data-loadout-slot], [data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-panel-toggle], [data-map-reroll], [data-fullscreen-toggle]",
+      "[data-mode-select], [data-back-menu], [data-play-again], [data-start-match], [data-enemy-weapon], [data-enemy-adjust], [data-loadout-slot], [data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-panel-toggle], [data-map-reroll], [data-fullscreen-toggle]",
     );
 
     if (!actionNode) {
@@ -52,6 +53,13 @@ export function bindInput(
 
     if (actionNode.dataset.backMenu !== undefined) {
       goToMenu(session);
+      event.preventDefault();
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.playAgain !== undefined) {
+      replayMatch(session);
       event.preventDefault();
       render();
       return;
