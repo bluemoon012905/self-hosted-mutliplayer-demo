@@ -1,11 +1,14 @@
-import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { createServer } from "node:http";
+import { extname, join, normalize } from "node:path";
 
 import { buildGameCatalog } from "../shared/factories/gameCatalogFactory";
 import type { MapDensity, MapLayoutSize } from "../shared/domain/gameTypes";
 
 const port = Number(process.env.PORT ?? 3001);
 const countdownDurationMs = 10_000;
+const distRoot = join(process.cwd(), "dist");
 
 type RoomStatus = "lobby" | "countdown" | "active";
 
@@ -118,6 +121,68 @@ function getRoom(roomCode: string): RoomState | null {
   return rooms.get(roomCode.toUpperCase()) ?? null;
 }
 
+function mimeTypeFor(pathname: string): string {
+  switch (extname(pathname)) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".json":
+      return "application/json; charset=utf-8";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function serveStaticAsset(
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<boolean> {
+  if (request.method !== "GET" || !request.url) {
+    return false;
+  }
+
+  const requestUrl = new URL(request.url, `http://${request.headers.host ?? "localhost"}`);
+
+  if (requestUrl.pathname.startsWith("/pvp/") || requestUrl.pathname === "/catalog" || requestUrl.pathname === "/health") {
+    return false;
+  }
+
+  const normalizedPath = normalize(requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname);
+  const assetPath = join(distRoot, normalizedPath);
+
+  if (!assetPath.startsWith(distRoot)) {
+    writeJson(response, 403, { error: "Forbidden" });
+    return true;
+  }
+
+  try {
+    const file = await readFile(assetPath);
+    response.writeHead(200, { "content-type": mimeTypeFor(assetPath) });
+    response.end(file);
+    return true;
+  } catch {
+    try {
+      const indexHtml = await readFile(join(distRoot, "index.html"));
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(indexHtml);
+      return true;
+    } catch {
+      writeJson(response, 404, { error: "Not found" });
+      return true;
+    }
+  }
+}
+
 const server = createServer((request, response) => {
   if (request.method === "OPTIONS") {
     writeJson(response, 204, {});
@@ -136,6 +201,10 @@ const server = createServer((request, response) => {
 
   void (async () => {
     try {
+      if (await serveStaticAsset(request, response)) {
+        return;
+      }
+
       if (request.method === "POST" && request.url === "/pvp/rooms/create") {
         const body = await readJson<{
           playerId?: string;
