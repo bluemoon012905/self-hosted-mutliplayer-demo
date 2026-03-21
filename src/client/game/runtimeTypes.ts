@@ -39,6 +39,8 @@ export interface PlayerRuntime {
     y: number;
   };
   attackAnimationRemainingMs: number;
+  isBlocking: boolean;
+  blockEffectiveness: number;
   role: PlayerRole;
   spriteKey: string;
 }
@@ -47,6 +49,11 @@ export interface EnemyRuntime {
   id: string;
   definition: PlayerDefinition;
   weaponId: string;
+  resources: {
+    health: number;
+    stamina: number;
+    mana: number;
+  };
   position: {
     x: number;
     y: number;
@@ -57,6 +64,7 @@ export interface EnemyRuntime {
   movementSpeed: number;
   walkCycle: number;
   attackAnimationRemainingMs: number;
+  attackCooldownRemainingMs: number;
   role: PlayerRole;
   spriteKey: string;
 }
@@ -70,6 +78,8 @@ export interface AttackEvent {
 
 export interface ProjectileRuntime {
   id: string;
+  ownerRole: PlayerRole;
+  damage: number;
   x: number;
   y: number;
   velocityX: number;
@@ -80,6 +90,8 @@ export interface ProjectileRuntime {
 
 export interface MeleeAttackRuntime {
   id: string;
+  ownerRole: PlayerRole;
+  damage: number;
   x: number;
   y: number;
   radius: number;

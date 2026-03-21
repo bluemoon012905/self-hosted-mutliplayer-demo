@@ -35,6 +35,8 @@ const meleeAttackLifetimeMs = 120;
 const meleeAttackRadiusMultiplier = 0.95;
 const meleeAttackDistanceMultiplier = 1.95;
 const maxLevelEnemiesPerWeapon = 4;
+const blockDecayPerSecond = 0.2;
+const blockStaminaDrainPerSecond = 10;
 const availableSpriteKeys = [
   "turtle_glasses",
   "turtle_cowboy",
@@ -111,6 +113,8 @@ function buildPlayer(
       y: 0,
     },
     attackAnimationRemainingMs: 0,
+    isBlocking: false,
+    blockEffectiveness: 1,
     role: "me",
     spriteKey: "turtle_glasses",
   };
@@ -263,17 +267,21 @@ function regenerateResource(
   return Math.min(max, current + (regenPerSecond * deltaMs) / 1000);
 }
 
-function updateFacing(session: GameSession, xAxis: number, yAxis: number): void {
+function updateActorFacing(
+  actor: Pick<PlayerRuntime | EnemyRuntime, "facing">,
+  xAxis: number,
+  yAxis: number,
+): void {
   if (xAxis === 0 && yAxis === 0) {
     return;
   }
 
   if (Math.abs(xAxis) >= Math.abs(yAxis)) {
-    session.player.facing = xAxis >= 0 ? "right" : "left";
+    actor.facing = xAxis >= 0 ? "right" : "left";
     return;
   }
 
-  session.player.facing = yAxis >= 0 ? "down" : "up";
+  actor.facing = yAxis >= 0 ? "down" : "up";
 }
 
 function movePlayerContinuously(session: GameSession, deltaMs: number): number {
@@ -294,7 +302,7 @@ function movePlayerContinuously(session: GameSession, deltaMs: number): number {
   const previousX = session.player.position.x;
   const previousY = session.player.position.y;
 
-  updateFacing(session, normalizedX, normalizedY);
+  updateActorFacing(session.player, normalizedX, normalizedY);
   movePlayerAxis(session, nextX, nextY);
 
   return Math.hypot(
@@ -314,6 +322,15 @@ function facingToVector(facing: FacingDirection): { x: number; y: number } {
     case "down":
       return { x: 0, y: 1 };
   }
+}
+
+function normalizeVector(x: number, y: number): { x: number; y: number } {
+  const length = Math.hypot(x, y) || 1;
+
+  return {
+    x: x / length,
+    y: y / length,
+  };
 }
 
 function movePlayerRolling(session: GameSession, deltaMs: number): number {
@@ -358,6 +375,11 @@ function buildEnemy(
     id: `enemy-${weaponId}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     definition,
     weaponId,
+    resources: {
+      health: definition.stats.health.max,
+      stamina: definition.stats.stamina.max,
+      mana: definition.stats.mana.max,
+    },
     position: tileCenter(session.map, spawnTile),
     radius: session.map.tileSize * playerHitboxRadiusRatio,
     facing: "left",
@@ -365,6 +387,7 @@ function buildEnemy(
     movementSpeed: 0,
     walkCycle: 0,
     attackAnimationRemainingMs: 0,
+    attackCooldownRemainingMs: 0,
     role: "enemy",
     spriteKey: randomSpriteKey(),
   };
@@ -394,6 +417,8 @@ function rebuildLevelEnemies(session: GameSession): void {
 function updateEnemies(session: GameSession, deltaMs: number): boolean {
   let moved = false;
 
+  session.enemies = session.enemies.filter((enemy) => enemy.resources.health > 0);
+
   for (const enemy of session.enemies) {
     const deltaX = session.player.position.x - enemy.position.x;
     const deltaY = session.player.position.y - enemy.position.y;
@@ -403,8 +428,40 @@ function updateEnemies(session: GameSession, deltaMs: number): boolean {
       0,
       enemy.attackAnimationRemainingMs - deltaMs,
     );
+    enemy.attackCooldownRemainingMs = Math.max(
+      0,
+      enemy.attackCooldownRemainingMs - deltaMs,
+    );
+    updateActorFacing(enemy, deltaX, deltaY);
 
-    if (distanceToPlayer < session.map.tileSize * 0.9) {
+    const enemyWeapon = getWeaponById(session, enemy.weaponId);
+    const attackRange =
+      enemyWeapon?.effect.type === "weapon-attack" &&
+      enemyWeapon.effect.damageType === "projectile"
+        ? session.map.tileSize * 5
+        : enemy.radius * 1.8;
+
+    if (
+      enemyWeapon?.effect.type === "weapon-attack" &&
+      distanceToPlayer <= attackRange &&
+      enemy.attackCooldownRemainingMs <= 0
+    ) {
+      performWeaponAttack(
+        session,
+        enemy,
+        enemyWeapon,
+        "center",
+        {
+          x: session.player.position.x,
+          y: session.player.position.y,
+        },
+      );
+      enemy.attackCooldownRemainingMs =
+        enemyWeapon.effect.attackPeriodSeconds * 1000;
+      moved = true;
+    }
+
+    if (distanceToPlayer < session.map.tileSize * 0.9 || distanceToPlayer <= attackRange * 0.8) {
       enemy.isMoving = false;
       enemy.movementSpeed = 0;
       continue;
@@ -419,11 +476,6 @@ function updateEnemies(session: GameSession, deltaMs: number): boolean {
     const previousX = enemy.position.x;
     const previousY = enemy.position.y;
 
-    updateFacing(
-      { player: enemy } as Pick<GameSession, "player"> as GameSession,
-      normalizedX,
-      normalizedY,
-    );
     moveActorAxis(session.map, enemy, nextX, nextY);
 
     const movedDistance = Math.hypot(
@@ -465,12 +517,46 @@ function rotateVector(x: number, y: number, degrees: number): { x: number; y: nu
   };
 }
 
-function getSelectedWeapon(session: GameSession): ItemDefinition | null {
-  if (!session.selectedWeaponId) {
+function getWeaponById(
+  session: GameSession,
+  weaponId: string | null | undefined,
+): ItemDefinition | null {
+  if (!weaponId) {
     return null;
   }
 
-  return session.catalog.indexes.itemsById[session.selectedWeaponId] ?? null;
+  return session.catalog.indexes.itemsById[weaponId] ?? null;
+}
+
+function getClosestEnemy(session: GameSession): EnemyRuntime | null {
+  let closestEnemy: EnemyRuntime | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+
+  for (const enemy of session.enemies) {
+    const distance = Math.hypot(
+      enemy.position.x - session.player.position.x,
+      enemy.position.y - session.player.position.y,
+    );
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestEnemy = enemy;
+    }
+  }
+
+  return closestEnemy;
+}
+
+function applyBlockMitigation(session: GameSession, damage: number): number {
+  if (!session.player.isBlocking) {
+    return damage;
+  }
+
+  return damage * (1 - session.player.blockEffectiveness);
+}
+
+function getSelectedWeapon(session: GameSession): ItemDefinition | null {
+  return getWeaponById(session, session.selectedWeaponId);
 }
 
 function syncInventorySelection(session: GameSession): void {
@@ -484,25 +570,34 @@ function syncInventorySelection(session: GameSession): void {
 
 function spawnProjectile(
   session: GameSession,
+  actor: Pick<PlayerRuntime | EnemyRuntime, "position" | "radius" | "facing" | "role">,
   item: Extract<ItemDefinition, { effect: { type: "weapon-attack" } }> | ItemDefinition,
   slot: AttackSlot,
+  targetPosition?: { x: number; y: number },
 ): void {
   if (item.effect.type !== "weapon-attack" || item.effect.damageType !== "projectile") {
     return;
   }
 
-  const baseDirection = facingToVector(session.player.facing);
+  const baseDirection = targetPosition
+    ? normalizeVector(
+        targetPosition.x - actor.position.x,
+        targetPosition.y - actor.position.y,
+      )
+    : facingToVector(actor.facing);
   const direction = rotateVector(
     baseDirection.x,
     baseDirection.y,
     angleForAttackSlot(slot),
   );
   const speed = (item.effect.projectileSpeed ?? 12) * session.map.tileSize;
-  const spawnDistance = session.player.radius * 1.4;
+  const spawnDistance = actor.radius * 1.4;
   const projectile: ProjectileRuntime = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    x: session.player.position.x + direction.x * spawnDistance,
-    y: session.player.position.y + direction.y * spawnDistance,
+    ownerRole: actor.role,
+    damage: item.effect.damage,
+    x: actor.position.x + direction.x * spawnDistance,
+    y: actor.position.y + direction.y * spawnDistance,
     velocityX: direction.x * speed,
     velocityY: direction.y * speed,
     lifetimeMs: projectileLifetimeMs,
@@ -514,26 +609,67 @@ function spawnProjectile(
 
 function spawnMeleeAttack(
   session: GameSession,
+  actor: Pick<PlayerRuntime | EnemyRuntime, "position" | "radius" | "facing" | "role">,
+  damage: number,
   slot: AttackSlot,
+  targetPosition?: { x: number; y: number },
 ): void {
-  const baseDirection = facingToVector(session.player.facing);
+  const baseDirection = targetPosition
+    ? normalizeVector(
+        targetPosition.x - actor.position.x,
+        targetPosition.y - actor.position.y,
+      )
+    : facingToVector(actor.facing);
   const direction = rotateVector(
     baseDirection.x,
     baseDirection.y,
     angleForAttackSlot(slot),
   );
-  const distance = session.player.radius * meleeAttackDistanceMultiplier;
+  const distance = actor.radius * meleeAttackDistanceMultiplier;
   const meleeAttack: MeleeAttackRuntime = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    x: session.player.position.x + direction.x * distance,
-    y: session.player.position.y + direction.y * distance,
-    radius: session.player.radius * meleeAttackRadiusMultiplier,
+    ownerRole: actor.role,
+    damage,
+    x: actor.position.x + direction.x * distance,
+    y: actor.position.y + direction.y * distance,
+    radius: actor.radius * meleeAttackRadiusMultiplier,
     directionX: direction.x,
     directionY: direction.y,
     lifetimeMs: meleeAttackLifetimeMs,
   };
 
   session.meleeAttacks = [...session.meleeAttacks, meleeAttack];
+}
+
+function performWeaponAttack(
+  session: GameSession,
+  actor: Pick<
+    PlayerRuntime | EnemyRuntime,
+    "position" | "radius" | "facing" | "role" | "attackAnimationRemainingMs"
+  >,
+  weapon: ItemDefinition,
+  slot: AttackSlot,
+  targetPosition?: { x: number; y: number },
+): void {
+  if (weapon.effect.type !== "weapon-attack") {
+    return;
+  }
+
+  const direction = targetPosition
+    ? normalizeVector(
+        targetPosition.x - actor.position.x,
+        targetPosition.y - actor.position.y,
+      )
+    : facingToVector(actor.facing);
+  updateActorFacing(actor, direction.x, direction.y);
+
+  if (weapon.effect.damageType === "projectile") {
+    spawnProjectile(session, actor, weapon, slot, targetPosition);
+  } else {
+    spawnMeleeAttack(session, actor, weapon.effect.damage, slot, targetPosition);
+  }
+
+  actor.attackAnimationRemainingMs = meleeAttackLifetimeMs;
 }
 
 function updateProjectiles(session: GameSession, deltaMs: number): boolean {
@@ -544,11 +680,45 @@ function updateProjectiles(session: GameSession, deltaMs: number): boolean {
     const nextY = projectile.y + (projectile.velocityY * deltaMs) / 1000;
     const nextLifetime = projectile.lifetimeMs - deltaMs;
 
-    if (
-      nextLifetime <= 0 ||
-      collidesWithWalls(session.map, nextX, nextY, session.player.radius * 0.12)
-    ) {
+    if (nextLifetime <= 0) {
       return false;
+    }
+
+    const hitRadius = session.player.radius * 0.12;
+
+    if (collidesWithWalls(session.map, nextX, nextY, hitRadius)) {
+      return false;
+    }
+
+    if (projectile.ownerRole === "me") {
+      const hitEnemy = session.enemies.find(
+        (enemy) =>
+          Math.hypot(enemy.position.x - nextX, enemy.position.y - nextY) <
+          enemy.radius + hitRadius,
+      );
+
+      if (hitEnemy) {
+        hitEnemy.resources.health = Math.max(
+          0,
+          hitEnemy.resources.health - projectile.damage,
+        );
+        return false;
+      }
+    } else {
+      const hitPlayer =
+        Math.hypot(
+          session.player.position.x - nextX,
+          session.player.position.y - nextY,
+        ) < session.player.radius + hitRadius;
+
+      if (hitPlayer) {
+        const damage = applyBlockMitigation(session, projectile.damage);
+        session.player.resources.health = Math.max(
+          0,
+          session.player.resources.health - damage,
+        );
+        return false;
+      }
     }
 
     projectile.x = nextX;
@@ -565,6 +735,38 @@ function updateMeleeAttacks(session: GameSession, deltaMs: number): boolean {
   const hadAttacks = session.meleeAttacks.length > 0;
 
   session.meleeAttacks = session.meleeAttacks.filter((attack) => {
+    if (attack.ownerRole === "enemy") {
+      const hitPlayer =
+        Math.hypot(
+          session.player.position.x - attack.x,
+          session.player.position.y - attack.y,
+        ) <
+        session.player.radius + attack.radius;
+
+      if (hitPlayer) {
+        const damage = applyBlockMitigation(session, attack.damage);
+        session.player.resources.health = Math.max(
+          0,
+          session.player.resources.health - damage,
+        );
+        return false;
+      }
+    } else {
+      const hitEnemy = session.enemies.find(
+        (enemy) =>
+          Math.hypot(enemy.position.x - attack.x, enemy.position.y - attack.y) <
+          enemy.radius + attack.radius,
+      );
+
+      if (hitEnemy) {
+        hitEnemy.resources.health = Math.max(
+          0,
+          hitEnemy.resources.health - attack.damage,
+        );
+        return false;
+      }
+    }
+
     attack.lifetimeMs -= deltaMs;
     return attack.lifetimeMs > 0;
   });
@@ -597,8 +799,41 @@ export function triggerRoll(session: GameSession): boolean {
   session.player.isRolling = true;
   session.player.rollTimeRemainingMs = rollDurationMs;
   session.player.rollDirection = direction;
-  updateFacing(session, direction.x, direction.y);
+  updateActorFacing(session.player, direction.x, direction.y);
 
+  return true;
+}
+
+export function startBlocking(session: GameSession): boolean {
+  if (session.player.isBlocking) {
+    return false;
+  }
+
+  const selectedWeapon = getSelectedWeapon(session);
+  const activationCost =
+    selectedWeapon?.effect.type === "weapon-attack"
+      ? selectedWeapon.effect.staminaCost
+      : 0;
+
+  if (session.player.resources.stamina < activationCost) {
+    return false;
+  }
+
+  session.player.resources.stamina = Math.max(
+    0,
+    session.player.resources.stamina - activationCost,
+  );
+  session.player.isBlocking = true;
+  session.player.blockEffectiveness = 1;
+  return true;
+}
+
+export function stopBlocking(session: GameSession): boolean {
+  if (!session.player.isBlocking) {
+    return false;
+  }
+
+  session.player.isBlocking = false;
   return true;
 }
 
@@ -801,6 +1036,8 @@ export function rerollMap(session: GameSession): void {
   session.player.rollTimeRemainingMs = 0;
   session.player.rollDirection = { x: 1, y: 0 };
   session.player.attackAnimationRemainingMs = 0;
+  session.player.isBlocking = false;
+  session.player.blockEffectiveness = 1;
   session.player.resources = {
     health: session.player.definition.stats.health.max,
     stamina: session.player.definition.stats.stamina.max,
@@ -839,6 +1076,21 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
   if (moved) {
     session.player.walkCycle +=
       deltaMs * (movementSpeed / Math.max(maxSpeedPerSecond, 1));
+  }
+
+  if (session.player.isBlocking) {
+    session.player.blockEffectiveness = Math.max(
+      0,
+      session.player.blockEffectiveness - (blockDecayPerSecond * deltaMs) / 1000,
+    );
+    session.player.resources.stamina = Math.max(
+      0,
+      session.player.resources.stamina - (blockStaminaDrainPerSecond * deltaMs) / 1000,
+    );
+
+    if (session.player.resources.stamina <= 0 || session.player.blockEffectiveness <= 0) {
+      session.player.isBlocking = false;
+    }
   }
 
   session.player.resources.health = regenerateResource(
@@ -891,12 +1143,16 @@ export function attack(session: GameSession, slot: AttackSlot): void {
       0,
       session.player.resources.stamina - selectedWeapon.effect.staminaCost,
     );
-    if (selectedWeapon.effect.damageType === "projectile") {
-      spawnProjectile(session, selectedWeapon, slot);
-    } else {
-      spawnMeleeAttack(session, slot);
-    }
-    session.player.attackAnimationRemainingMs = meleeAttackLifetimeMs;
+    const closestEnemy = getClosestEnemy(session);
+    performWeaponAttack(
+      session,
+      session.player,
+      selectedWeapon,
+      slot,
+      closestEnemy
+        ? { x: closestEnemy.position.x, y: closestEnemy.position.y }
+        : undefined,
+    );
   }
 
   const event: AttackEvent = {

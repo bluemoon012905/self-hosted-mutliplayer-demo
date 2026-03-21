@@ -77,6 +77,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
 
+function normalizeVector(x: number, y: number): { x: number; y: number } {
+  const length = Math.hypot(x, y) || 1;
+
+  return {
+    x: x / length,
+    y: y / length,
+  };
+}
+
 function keyOf(tile: TilePoint): string {
   return `${tile.column},${tile.row}`;
 }
@@ -206,6 +215,9 @@ function renderActorOverlay(
     | "walkCycle"
     | "attackAnimationRemainingMs"
     | "definition"
+    | "role"
+    | "spriteKey"
+    | "facing"
   >,
   weaponId: string | null | undefined,
   session: GameSession,
@@ -266,12 +278,31 @@ function renderActorOverlay(
   const attackSwingDegrees = attackSwingProgress > 0
     ? (actor.facing === "left" ? -1 : 1) * (18 + attackSwingProgress * 26)
     : 0;
+  const isBlockingActor =
+    actor.role === "me" && "isBlocking" in actor && actor.isBlocking;
+  const blockEffectiveness =
+    actor.role === "me" && "blockEffectiveness" in actor
+      ? actor.blockEffectiveness
+      : 0;
+  const blockBarTop = spriteTop - 16;
 
   return `
     <div
       class="arena-player-overlay ${roleClass} ${facingClass}"
       style="left:${left}px; top:${top}px;"
     >
+      ${
+        isBlockingActor
+          ? `
+              <div class="arena-block-meter" style="top:${blockBarTop}px;">
+                <div
+                  class="arena-block-meter-fill"
+                  style="width:${Math.max(0, Math.min(100, blockEffectiveness * 100))}%;"
+                ></div>
+              </div>
+            `
+          : ""
+      }
       ${
         weaponSpriteUrl
           ? `
@@ -359,6 +390,8 @@ function renderProjectiles(
       const rotation =
         (Math.atan2(projectile.velocityY, projectile.velocityX) * 180) / Math.PI + 90;
       const size = (session.player.radius * renderCellSize) / session.map.tileSize;
+      const direction = normalizeVector(projectile.velocityX, projectile.velocityY);
+      const visualOffset = size * 0.28;
       const spriteUrl = itemSpriteUrlByKey[projectile.spriteKey];
 
       if (!spriteUrl) {
@@ -371,7 +404,7 @@ function renderProjectiles(
           src="${spriteUrl}"
           alt=""
           aria-hidden="true"
-          style="left:${left}px; top:${top}px; width:${size}px; height:${size}px; --projectile-rotation:${rotation}deg;"
+          style="left:${left + direction.x * visualOffset}px; top:${top + direction.y * visualOffset}px; width:${size}px; height:${size}px; --projectile-rotation:${rotation}deg;"
         />
       `;
     })

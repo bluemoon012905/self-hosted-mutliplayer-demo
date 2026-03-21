@@ -12,7 +12,9 @@ import {
   selectMode,
   setMovementKeyState,
   setMapDensity,
+  startBlocking,
   startMatch,
+  stopBlocking,
   togglePanelCollapse,
   triggerRoll,
   toggleInventory,
@@ -216,17 +218,15 @@ export function bindInput(
         if (event.repeat) {
           return;
         }
-        attack(session, "left");
+        attack(session, "center");
         event.preventDefault();
         render();
         return;
       case "k":
-        if (event.repeat) {
-          return;
+        if (startBlocking(session)) {
+          render();
         }
-        attack(session, "center");
         event.preventDefault();
-        render();
         return;
       case "l":
         if (event.repeat) {
@@ -263,6 +263,12 @@ export function bindInput(
         return;
       case "d":
         setMovementKeyState(session, "right", false);
+        event.preventDefault();
+        return;
+      case "k":
+        if (stopBlocking(session)) {
+          render();
+        }
         event.preventDefault();
         return;
       default:
