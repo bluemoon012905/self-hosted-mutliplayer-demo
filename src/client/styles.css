@@ -55,6 +55,15 @@ body::before {
   align-items: start;
 }
 
+.shell-layout-full {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+.shell-layout-full .arena-stage {
+  width: min(100%, 1320px);
+}
+
 .control-stack {
   display: grid;
   gap: 12px;

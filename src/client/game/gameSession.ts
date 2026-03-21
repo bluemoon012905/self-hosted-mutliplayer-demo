@@ -203,6 +203,16 @@ export function createGameSession(catalog: GameCatalog): GameSession {
     attackLog: [],
     projectiles: [],
     meleeAttacks: [],
+    pvp: {
+      playerId: `player-${Math.random().toString(36).slice(2, 10)}`,
+      playerName: `Pilot-${Math.random().toString(36).slice(2, 6)}`,
+      serverUrl: "http://localhost:3001",
+      roomCodeInput: "",
+      passwordInput: "",
+      currentRoom: null,
+      errorMessage: null,
+      isBusy: false,
+    },
     collapsedPanels: {
       mapLab: false,
       character: false,
@@ -1031,6 +1041,11 @@ export function setSelectedWeapon(session: GameSession, itemId: string): void {
   session.selectedWeaponId = itemId;
   session.player.isChargingAttack = false;
   session.player.attackChargeMs = 0;
+  const weapon = getWeaponById(session, itemId);
+  session.player.attackCooldownRemainingMs =
+    weapon?.effect.type === "weapon-attack" && weaponBehavior(weapon) === "crossbow"
+      ? Math.max(session.player.attackCooldownRemainingMs, attackPeriodMs(weapon))
+      : 0;
 }
 
 export function setSetupLoadoutWeapon(
@@ -1084,6 +1099,11 @@ export function setActiveWeaponSlot(
   session.selectedWeaponId = weaponId;
   session.player.isChargingAttack = false;
   session.player.attackChargeMs = 0;
+  const weapon = getWeaponById(session, weaponId);
+  session.player.attackCooldownRemainingMs =
+    weapon?.effect.type === "weapon-attack" && weaponBehavior(weapon) === "crossbow"
+      ? Math.max(session.player.attackCooldownRemainingMs, attackPeriodMs(weapon))
+      : 0;
   return true;
 }
 
@@ -1096,6 +1116,9 @@ export function goToMenu(session: GameSession): void {
   session.enemies = [];
   session.attackLog = [];
   session.input = buildEmptyInput();
+  session.player.attackCooldownRemainingMs = 0;
+  session.player.attackChargeMs = 0;
+  session.player.isChargingAttack = false;
 }
 
 export function selectMode(session: GameSession, mode: GameMode): void {
@@ -1105,6 +1128,9 @@ export function selectMode(session: GameSession, mode: GameMode): void {
   session.attackLog = [];
   session.input = buildEmptyInput();
   session.activeWeaponSlot = 0;
+  session.player.attackCooldownRemainingMs = 0;
+  session.player.attackChargeMs = 0;
+  session.player.isChargingAttack = false;
   syncInventorySelection(session);
 
   if (mode === "sandbox") {

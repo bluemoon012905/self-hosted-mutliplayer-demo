@@ -1173,6 +1173,7 @@ export function renderGame(session: GameSession): string {
 
   const isFullscreen = Boolean(document.fullscreenElement);
   const modeLabel = session.mode === "sandbox" ? "Sandbox" : session.mode === "levels" ? "Levels" : "PVP";
+  const showSandboxControls = session.mode === "sandbox";
   const equippedLoadout =
     session.mode === "sandbox"
       ? ""
@@ -1194,12 +1195,18 @@ export function renderGame(session: GameSession): string {
 
   return `
     <main class="shell">
-      <div class="shell-layout">
-        <div class="control-stack">
-          ${renderMapGenerationPanel(session)}
-          ${renderCharacterPanel(session)}
-          ${renderWeaponPanel(session)}
-        </div>
+      <div class="shell-layout${showSandboxControls ? "" : " shell-layout-full"}">
+        ${
+          showSandboxControls
+            ? `
+                <div class="control-stack">
+                  ${renderMapGenerationPanel(session)}
+                  ${renderCharacterPanel(session)}
+                  ${renderWeaponPanel(session)}
+                </div>
+              `
+            : ""
+        }
         <section class="panel arena-stage">
           <div class="arena-panel">
             <div class="arena-topbar">
