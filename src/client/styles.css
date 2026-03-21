@@ -415,6 +415,16 @@ h1 {
   right: 14px;
 }
 
+.arena-overlay-bottom {
+  position: absolute;
+  z-index: 6;
+  bottom: 14px;
+}
+
+.arena-overlay-bottom-right {
+  right: 14px;
+}
+
 .arena-overview {
   display: grid;
   justify-items: end;
@@ -424,6 +434,54 @@ h1 {
   background: rgba(7, 14, 19, 0.48);
   border: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(8px);
+}
+
+.weapon-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(7, 14, 19, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.weapon-status.is-ready {
+  border-color: rgba(82, 210, 115, 0.45);
+  background: rgba(20, 41, 24, 0.72);
+}
+
+.weapon-status-image {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+}
+
+.weapon-status-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.weapon-status-copy span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.weapon-status-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.weapon-status-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f7a531, #effdff);
 }
 
 .arena-grid::before {

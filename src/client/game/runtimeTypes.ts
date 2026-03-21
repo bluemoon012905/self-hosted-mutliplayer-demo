@@ -39,6 +39,9 @@ export interface PlayerRuntime {
     y: number;
   };
   attackAnimationRemainingMs: number;
+  attackCooldownRemainingMs: number;
+  attackChargeMs: number;
+  isChargingAttack: boolean;
   isBlocking: boolean;
   blockEffectiveness: number;
   role: PlayerRole;

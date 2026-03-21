@@ -1,9 +1,10 @@
 import {
   adjustLevelEnemyCount,
-  attack,
   goToMenu,
+  releasePrimaryAttack,
   replayMatch,
   rerollMap,
+  startPrimaryAttack,
   setMapLayoutSize,
   setPlayerSprite,
   setActiveWeaponSlot,
@@ -226,23 +227,16 @@ export function bindInput(
         if (event.repeat) {
           return;
         }
-        attack(session, "center");
+        if (startPrimaryAttack(session)) {
+          render();
+        }
         event.preventDefault();
-        render();
         return;
       case "k":
         if (startBlocking(session)) {
           render();
         }
         event.preventDefault();
-        return;
-      case "l":
-        if (event.repeat) {
-          return;
-        }
-        attack(session, "right");
-        event.preventDefault();
-        render();
         return;
       default:
         return;
@@ -271,6 +265,12 @@ export function bindInput(
         return;
       case "d":
         setMovementKeyState(session, "right", false);
+        event.preventDefault();
+        return;
+      case "j":
+        if (releasePrimaryAttack(session)) {
+          render();
+        }
         event.preventDefault();
         return;
       case "k":

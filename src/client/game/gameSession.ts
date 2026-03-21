@@ -113,11 +113,36 @@ function buildPlayer(
       y: 0,
     },
     attackAnimationRemainingMs: 0,
+    attackCooldownRemainingMs: 0,
+    attackChargeMs: 0,
+    isChargingAttack: false,
     isBlocking: false,
     blockEffectiveness: 1,
     role: "me",
     spriteKey: "turtle_glasses",
   };
+}
+
+function attackPeriodMs(weapon: ItemDefinition): number {
+  return weapon.effect.type === "weapon-attack"
+    ? weapon.effect.attackPeriodSeconds * 1000
+    : 0;
+}
+
+function weaponBehavior(weapon: ItemDefinition | null): "cooldown" | "bow" | "crossbow" {
+  if (!weapon) {
+    return "cooldown";
+  }
+
+  if (weapon.id === "bow") {
+    return "bow";
+  }
+
+  if (weapon.id === "crossbow") {
+    return "crossbow";
+  }
+
+  return "cooldown";
 }
 
 function getDefaultWeaponId(catalog: GameCatalog): string | null {
@@ -574,6 +599,7 @@ function spawnProjectile(
   item: Extract<ItemDefinition, { effect: { type: "weapon-attack" } }> | ItemDefinition,
   slot: AttackSlot,
   targetPosition?: { x: number; y: number },
+  damageOverride?: number,
 ): void {
   if (item.effect.type !== "weapon-attack" || item.effect.damageType !== "projectile") {
     return;
@@ -595,7 +621,7 @@ function spawnProjectile(
   const projectile: ProjectileRuntime = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     ownerRole: actor.role,
-    damage: item.effect.damage,
+    damage: damageOverride ?? item.effect.damage,
     x: actor.position.x + direction.x * spawnDistance,
     y: actor.position.y + direction.y * spawnDistance,
     velocityX: direction.x * speed,
@@ -650,6 +676,7 @@ function performWeaponAttack(
   weapon: ItemDefinition,
   slot: AttackSlot,
   targetPosition?: { x: number; y: number },
+  damageOverride?: number,
 ): void {
   if (weapon.effect.type !== "weapon-attack") {
     return;
@@ -664,9 +691,15 @@ function performWeaponAttack(
   updateActorFacing(actor, direction.x, direction.y);
 
   if (weapon.effect.damageType === "projectile") {
-    spawnProjectile(session, actor, weapon, slot, targetPosition);
+    spawnProjectile(session, actor, weapon, slot, targetPosition, damageOverride);
   } else {
-    spawnMeleeAttack(session, actor, weapon.effect.damage, slot, targetPosition);
+    spawnMeleeAttack(
+      session,
+      actor,
+      damageOverride ?? weapon.effect.damage,
+      slot,
+      targetPosition,
+    );
   }
 
   actor.attackAnimationRemainingMs = meleeAttackLifetimeMs;
@@ -837,6 +870,93 @@ export function stopBlocking(session: GameSession): boolean {
   return true;
 }
 
+export function startPrimaryAttack(session: GameSession): boolean {
+  const selectedWeapon = getSelectedWeapon(session);
+
+  if (selectedWeapon?.effect.type !== "weapon-attack") {
+    return false;
+  }
+
+  const behavior = weaponBehavior(selectedWeapon);
+
+  if (behavior === "bow") {
+    if (
+      session.player.isChargingAttack ||
+      session.player.resources.stamina < selectedWeapon.effect.staminaCost
+    ) {
+      return false;
+    }
+
+    session.player.isChargingAttack = true;
+    session.player.attackChargeMs = 0;
+    return true;
+  }
+
+  if (
+    session.player.attackCooldownRemainingMs > 0 ||
+    session.player.resources.stamina < selectedWeapon.effect.staminaCost
+  ) {
+    return false;
+  }
+
+  session.player.resources.stamina = Math.max(
+    0,
+    session.player.resources.stamina - selectedWeapon.effect.staminaCost,
+  );
+  const closestEnemy = getClosestEnemy(session);
+  performWeaponAttack(
+    session,
+    session.player,
+    selectedWeapon,
+    "center",
+    closestEnemy
+      ? { x: closestEnemy.position.x, y: closestEnemy.position.y }
+      : undefined,
+  );
+  session.player.attackCooldownRemainingMs = attackPeriodMs(selectedWeapon);
+  return true;
+}
+
+export function releasePrimaryAttack(session: GameSession): boolean {
+  const selectedWeapon = getSelectedWeapon(session);
+
+  if (
+    selectedWeapon?.effect.type !== "weapon-attack" ||
+    weaponBehavior(selectedWeapon) !== "bow" ||
+    !session.player.isChargingAttack
+  ) {
+    return false;
+  }
+
+  session.player.isChargingAttack = false;
+  const chargeRatio = Math.max(
+    0,
+    Math.min(1, session.player.attackChargeMs / Math.max(attackPeriodMs(selectedWeapon), 1)),
+  );
+  session.player.attackChargeMs = 0;
+
+  if (session.player.resources.stamina < selectedWeapon.effect.staminaCost) {
+    return true;
+  }
+
+  session.player.resources.stamina = Math.max(
+    0,
+    session.player.resources.stamina - selectedWeapon.effect.staminaCost,
+  );
+  const closestEnemy = getClosestEnemy(session);
+  performWeaponAttack(
+    session,
+    session.player,
+    selectedWeapon,
+    "center",
+    closestEnemy
+      ? { x: closestEnemy.position.x, y: closestEnemy.position.y }
+      : undefined,
+    Math.max(1, selectedWeapon.effect.damage * chargeRatio),
+  );
+  return true;
+}
+
 export function setMovementKeyState(
   session: GameSession,
   key: "up" | "down" | "left" | "right",
@@ -909,6 +1029,8 @@ export function setSelectedWeapon(session: GameSession, itemId: string): void {
   }
 
   session.selectedWeaponId = itemId;
+  session.player.isChargingAttack = false;
+  session.player.attackChargeMs = 0;
 }
 
 export function setSetupLoadoutWeapon(
@@ -960,6 +1082,8 @@ export function setActiveWeaponSlot(
 
   session.activeWeaponSlot = slot;
   session.selectedWeaponId = weaponId;
+  session.player.isChargingAttack = false;
+  session.player.attackChargeMs = 0;
   return true;
 }
 
@@ -1045,6 +1169,9 @@ export function rerollMap(session: GameSession): void {
   session.player.rollTimeRemainingMs = 0;
   session.player.rollDirection = { x: 1, y: 0 };
   session.player.attackAnimationRemainingMs = 0;
+  session.player.attackCooldownRemainingMs = 0;
+  session.player.attackChargeMs = 0;
+  session.player.isChargingAttack = false;
   session.player.isBlocking = false;
   session.player.blockEffectiveness = 1;
   session.player.resources = {
@@ -1059,6 +1186,14 @@ export function rerollMap(session: GameSession): void {
   session.enemies = [];
   session.player.inventoryOpen = false;
   syncInventorySelection(session);
+
+  const selectedWeapon = getSelectedWeapon(session);
+  if (
+    selectedWeapon?.effect.type === "weapon-attack" &&
+    weaponBehavior(selectedWeapon) === "crossbow"
+  ) {
+    session.player.attackCooldownRemainingMs = attackPeriodMs(selectedWeapon);
+  }
 
   if (session.mode === "levels" && session.flow === "match") {
     rebuildLevelEnemies(session);
@@ -1081,6 +1216,10 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
 
   session.player.isMoving = moved || session.player.isRolling;
   session.player.movementSpeed = movementSpeed;
+  session.player.attackCooldownRemainingMs = Math.max(
+    0,
+    session.player.attackCooldownRemainingMs - deltaMs,
+  );
 
   if (moved) {
     session.player.walkCycle +=
@@ -1100,6 +1239,19 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
     if (session.player.resources.stamina <= 0 || session.player.blockEffectiveness <= 0) {
       session.player.isBlocking = false;
     }
+  }
+
+  const selectedWeapon = getSelectedWeapon(session);
+
+  if (
+    session.player.isChargingAttack &&
+    selectedWeapon?.effect.type === "weapon-attack" &&
+    weaponBehavior(selectedWeapon) === "bow"
+  ) {
+    session.player.attackChargeMs = Math.min(
+      attackPeriodMs(selectedWeapon),
+      session.player.attackChargeMs + deltaMs,
+    );
   }
 
   session.player.resources.health = regenerateResource(
@@ -1147,27 +1299,11 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
 }
 
 export function attack(session: GameSession, slot: AttackSlot): void {
-  const selectedWeapon = getSelectedWeapon(session);
+  const triggered =
+    slot === "center" ? startPrimaryAttack(session) : false;
 
-  if (selectedWeapon?.effect.type === "weapon-attack") {
-    if (session.player.resources.stamina < selectedWeapon.effect.staminaCost) {
-      return;
-    }
-
-    session.player.resources.stamina = Math.max(
-      0,
-      session.player.resources.stamina - selectedWeapon.effect.staminaCost,
-    );
-    const closestEnemy = getClosestEnemy(session);
-    performWeaponAttack(
-      session,
-      session.player,
-      selectedWeapon,
-      slot,
-      closestEnemy
-        ? { x: closestEnemy.position.x, y: closestEnemy.position.y }
-        : undefined,
-    );
+  if (!triggered) {
+    return;
   }
 
   const event: AttackEvent = {

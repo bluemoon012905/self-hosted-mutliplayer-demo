@@ -67,6 +67,22 @@ function formatDamageType(value: string): string {
   return value === "projectile" ? "proj" : value;
 }
 
+function weaponBehavior(weapon: ItemDefinition | null | undefined): "cooldown" | "bow" | "crossbow" {
+  if (!weapon) {
+    return "cooldown";
+  }
+
+  if (weapon.id === "bow") {
+    return "bow";
+  }
+
+  if (weapon.id === "crossbow") {
+    return "crossbow";
+  }
+
+  return "cooldown";
+}
+
 function getWeaponItems(session: GameSession): ItemDefinition[] {
   return session.availableWeaponIds
     .map((itemId) => session.catalog.indexes.itemsById[itemId])
@@ -286,33 +302,12 @@ function renderActorOverlay(
       ? actor.blockEffectiveness
       : 0;
   const blockBarTop = spriteTop - 16;
-  const statsTop = blockBarTop - 30;
-  const healthRatio = actor.resources.health / Math.max(actor.definition.stats.health.max, 1);
-  const staminaRatio = actor.resources.stamina / Math.max(actor.definition.stats.stamina.max, 1);
-  const manaRatio = actor.resources.mana / Math.max(actor.definition.stats.mana.max, 1);
 
   return `
     <div
       class="arena-player-overlay ${roleClass} ${facingClass}"
       style="left:${left}px; top:${top}px;"
     >
-      <div class="arena-actor-stats${actor.role === "enemy" ? " is-enemy" : ""}" style="top:${statsTop}px;">
-        <div class="arena-stat-bar is-health">
-          <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, healthRatio * 100))}%;"></div>
-        </div>
-        ${
-          actor.role === "enemy"
-            ? ""
-            : `
-                <div class="arena-stat-bar is-stamina">
-                  <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, staminaRatio * 100))}%;"></div>
-                </div>
-                <div class="arena-stat-bar is-mana">
-                  <div class="arena-stat-fill" style="width:${Math.max(0, Math.min(100, manaRatio * 100))}%;"></div>
-                </div>
-              `
-        }
-      </div>
       ${
         isBlockingActor
           ? `
@@ -379,6 +374,55 @@ function renderGameOverOverlay(session: GameSession): string {
         <div class="game-over-actions">
           <button class="selector-button is-active" data-play-again type="button">Go Again</button>
           <button class="selector-button" data-back-menu type="button">Return to Menu</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWeaponStatus(session: GameSession): string {
+  const weapon = session.selectedWeaponId
+    ? session.catalog.indexes.itemsById[session.selectedWeaponId]
+    : null;
+
+  if (!weapon || weapon.effect.type !== "weapon-attack") {
+    return "";
+  }
+
+  const spriteUrl = weapon.spriteKey ? itemSpriteUrlByKey[weapon.spriteKey] : undefined;
+  const behavior = weaponBehavior(weapon);
+  const periodMs = Math.max(weapon.effect.attackPeriodSeconds * 1000, 1);
+  const readyRatio =
+    behavior === "bow"
+      ? session.player.isChargingAttack
+        ? Math.max(0, Math.min(1, session.player.attackChargeMs / periodMs))
+        : 1
+      : Math.max(0, Math.min(1, 1 - session.player.attackCooldownRemainingMs / periodMs));
+  const isReady =
+    behavior === "bow"
+      ? !session.player.isChargingAttack
+      : session.player.attackCooldownRemainingMs <= 0;
+  const statusLabel =
+    behavior === "bow"
+      ? session.player.isChargingAttack
+        ? `Charging ${Math.round(readyRatio * 100)}%`
+        : "Ready"
+      : isReady
+        ? "Ready"
+        : `Reloading ${Math.round(readyRatio * 100)}%`;
+
+  return `
+    <div class="weapon-status${isReady ? " is-ready" : ""}">
+      ${
+        spriteUrl
+          ? `<img class="weapon-status-image" src="${spriteUrl}" alt="${weapon.name}" />`
+          : ""
+      }
+      <div class="weapon-status-copy">
+        <strong>${weapon.name}</strong>
+        <span>${statusLabel}</span>
+        <div class="weapon-status-bar">
+          <div class="weapon-status-fill" style="width:${readyRatio * 100}%;"></div>
         </div>
       </div>
     </div>
@@ -1184,6 +1228,9 @@ export function renderGame(session: GameSession): string {
                     ${session.map.archetype} · ${session.map.size.columns}x${session.map.size.rows}
                   </p>
                 </div>
+              </div>
+              <div class="arena-overlay-bottom arena-overlay-bottom-right">
+                ${renderWeaponStatus(session)}
               </div>
               ${renderArena(session)}
               ${renderGameOverOverlay(session)}
