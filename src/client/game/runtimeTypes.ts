@@ -30,9 +30,14 @@ export interface PlayerRuntime {
   isMoving: boolean;
   movementSpeed: number;
   walkCycle: number;
+  isRolling: boolean;
+  rollTimeRemainingMs: number;
+  rollDirection: {
+    x: number;
+    y: number;
+  };
   role: PlayerRole;
   spriteKey: string;
-  emote: string;
 }
 
 export interface AttackEvent {
@@ -40,6 +45,16 @@ export interface AttackEvent {
   slot: AttackSlot;
   label: string;
   createdAt: number;
+}
+
+export interface ProjectileRuntime {
+  id: string;
+  x: number;
+  y: number;
+  velocityX: number;
+  velocityY: number;
+  lifetimeMs: number;
+  spriteKey: string;
 }
 
 export interface GameSession {
@@ -50,6 +65,8 @@ export interface GameSession {
   availableDensities: MapDensity[];
   availableLayoutSizes: MapLayoutSize[];
   availableSpriteKeys: string[];
+  availableWeaponIds: string[];
+  selectedWeaponId: string | null;
   map: MapDefinition;
   player: PlayerRuntime;
   input: {
@@ -60,6 +77,7 @@ export interface GameSession {
   };
   inventoryItems: ItemDefinition[];
   attackLog: AttackEvent[];
+  projectiles: ProjectileRuntime[];
 }
 
 export interface MapSelectorState {

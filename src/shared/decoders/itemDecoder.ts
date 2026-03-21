@@ -4,6 +4,27 @@ import { invariant } from "./assert";
 
 function decodeEffect(effect: ItemEffectInput): ItemEffect {
   switch (effect.type) {
+    case "weapon-attack":
+      invariant(effect.damage > 0, "Weapon damage must be > 0");
+      invariant(
+        effect.attackPeriodSeconds > 0,
+        "Weapon attackPeriodSeconds must be > 0",
+      );
+      invariant(effect.staminaCost >= 0, "Weapon staminaCost must be >= 0");
+      if (effect.projectileSpeed !== undefined) {
+        invariant(
+          effect.projectileSpeed > 0,
+          "Weapon projectileSpeed must be > 0 when provided",
+        );
+      }
+      return {
+        type: effect.type,
+        damage: effect.damage,
+        attackPeriodSeconds: effect.attackPeriodSeconds,
+        staminaCost: effect.staminaCost,
+        damageType: effect.damageType,
+        projectileSpeed: effect.projectileSpeed,
+      };
     case "projectile-burst":
       invariant(effect.count > 0, "Burst count must be > 0");
       invariant(effect.spreadDegrees >= 0, "Spread must be >= 0");
@@ -30,8 +51,10 @@ export function decodeItem(input: ItemDefinitionInput): ItemDefinition {
   return {
     id: input.id,
     name: input.name,
+    description: input.description ?? "",
     kind: input.kind,
     rarity: input.rarity,
+    spriteKey: input.spriteKey,
     effect: decodeEffect(input.effect),
   };
 }

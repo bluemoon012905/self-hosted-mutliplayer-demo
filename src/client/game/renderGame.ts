@@ -1,6 +1,18 @@
-import type { TilePoint } from "../../shared/domain/gameTypes";
+import type { ItemDefinition, TilePoint } from "../../shared/domain/gameTypes";
 import { getPlayerTile } from "./gameSession";
 import type { GameSession } from "./runtimeTypes";
+import bowUrl from "../../../item_sprite/bow.png";
+import breadUrl from "../../../item_sprite/bread.png";
+import crossbowUrl from "../../../item_sprite/crossbow.png";
+import arrowUrl from "../../../item_sprite/arrow.png";
+import potionBlueUrl from "../../../item_sprite/potion_blue.png";
+import potionGoldUrl from "../../../item_sprite/potion_gold.png";
+import potionGreenUrl from "../../../item_sprite/potion_green.png";
+import potionPurpleUrl from "../../../item_sprite/potion_purple.png";
+import potionRedUrl from "../../../item_sprite/potion_red.png";
+import spearUrl from "../../../item_sprite/spear.png";
+import staffUrl from "../../../item_sprite/staff.png";
+import swordUrl from "../../../item_sprite/sword.png";
 import turtleCheeseUrl from "../../../player_sprite/turtle_cheese.png";
 import turtleCowboyUrl from "../../../player_sprite/turtle_cowboy.png";
 import turtleFrogUrl from "../../../player_sprite/turtle_frog.png";
@@ -25,11 +37,40 @@ const spriteUrlByKey: Record<string, string> = {
   turtle_scropion: turtleScorpionUrl,
 };
 
+const itemSpriteUrlByKey: Record<string, string> = {
+  bow: bowUrl,
+  bread: breadUrl,
+  crossbow: crossbowUrl,
+  arrow: arrowUrl,
+  potion_blue: potionBlueUrl,
+  potion_gold: potionGoldUrl,
+  potion_green: potionGreenUrl,
+  potion_purple: potionPurpleUrl,
+  potion_red: potionRedUrl,
+  spear: spearUrl,
+  staff: staffUrl,
+  sword: swordUrl,
+};
+
 function labelForSprite(spriteKey: string): string {
   return spriteKey
     .replace("turtle_", "")
     .replace("scropion", "scorpion")
     .replace(/_/g, " ");
+}
+
+function labelForItemSprite(spriteKey: string): string {
+  return spriteKey.replace(/_/g, " ");
+}
+
+function formatDamageType(value: string): string {
+  return value === "projectile" ? "proj" : value;
+}
+
+function getWeaponItems(session: GameSession): ItemDefinition[] {
+  return session.availableWeaponIds
+    .map((itemId) => session.catalog.indexes.itemsById[itemId])
+    .filter((item): item is ItemDefinition => Boolean(item));
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -166,11 +207,10 @@ function renderPlayerOverlay(
     ((session.player.radius * 2) * renderCellSize) / session.map.tileSize;
   const hitboxHeight = hitboxWidth;
   const spriteWidth =
-    ((session.player.radius * 3.25) * renderCellSize) / session.map.tileSize;
+    ((session.player.radius * 2.75) * renderCellSize) / session.map.tileSize;
   const spriteHeight =
-    ((session.player.radius * 3.7) * renderCellSize) / session.map.tileSize;
-  const spriteTop = -(hitboxHeight * 0.98 + spriteHeight * 0.62) + 30;
-  const emoteTop = spriteTop - renderCellSize * 0.72;
+    ((session.player.radius * 3.15) * renderCellSize) / session.map.tileSize;
+  const spriteTop = -(hitboxHeight * 0.9 + spriteHeight * 0.58) + 32;
   const roleClass = `player-role-${session.player.role}`;
   const spriteUrl =
     spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
@@ -184,15 +224,45 @@ function renderPlayerOverlay(
   const wobbleDegrees = session.player.isMoving
     ? Math.sin(session.player.walkCycle / 70) * 5 * speedRatio
     : 0;
+  const selectedWeapon = session.selectedWeaponId
+    ? session.catalog.indexes.itemsById[session.selectedWeaponId]
+    : undefined;
+  const weaponSpriteUrl =
+    selectedWeapon?.spriteKey && itemSpriteUrlByKey[selectedWeapon.spriteKey]
+      ? itemSpriteUrlByKey[selectedWeapon.spriteKey]
+      : undefined;
+  const weaponWidth =
+    ((session.player.radius * 1.55) * renderCellSize) / session.map.tileSize;
+  const weaponHeight =
+    ((session.player.radius * 1.55) * renderCellSize) / session.map.tileSize;
+  const weaponLeft = session.player.facing === "left" ? -hitboxWidth * 0.34 : hitboxWidth * 0.34;
+  const weaponTop = -(hitboxHeight * 0.18);
+  const weaponRotation =
+    session.player.facing === "up"
+      ? -85
+      : session.player.facing === "down"
+        ? 85
+        : session.player.facing === "left"
+          ? -32
+          : 32;
 
   return `
     <div
       class="arena-player-overlay ${roleClass} ${facingClass}"
       style="left:${left}px; top:${top}px;"
     >
-      <div class="arena-player-emote" style="top:${emoteTop}px;">
-        ${session.player.emote}
-      </div>
+      ${
+        weaponSpriteUrl
+          ? `
+              <img
+                class="arena-player-weapon"
+                src="${weaponSpriteUrl}"
+                alt="${selectedWeapon?.name ?? "weapon"}"
+                style="width:${weaponWidth}px; height:${weaponHeight}px; left:${weaponLeft}px; top:${weaponTop}px; --weapon-rotation:${weaponRotation}deg;"
+              />
+            `
+          : ""
+      }
       <img
         class="arena-player-sprite"
         src="${spriteUrl}"
@@ -205,6 +275,38 @@ function renderPlayerOverlay(
       ></div>
     </div>
   `;
+}
+
+function renderProjectiles(
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
+  return session.projectiles
+    .map((projectile) => {
+      const left =
+        ((projectile.x - viewport.originX) / session.map.tileSize) * renderCellSize;
+      const top =
+        ((projectile.y - viewport.originY) / session.map.tileSize) * renderCellSize;
+      const rotation =
+        (Math.atan2(projectile.velocityY, projectile.velocityX) * 180) / Math.PI + 90;
+      const size = (session.player.radius * renderCellSize) / session.map.tileSize;
+      const spriteUrl = itemSpriteUrlByKey[projectile.spriteKey];
+
+      if (!spriteUrl) {
+        return "";
+      }
+
+      return `
+        <img
+          class="arena-projectile"
+          src="${spriteUrl}"
+          alt=""
+          aria-hidden="true"
+          style="left:${left}px; top:${top}px; width:${size}px; height:${size}px; --projectile-rotation:${rotation}deg;"
+        />
+      `;
+    })
+    .join("");
 }
 
 function renderWallSegments(
@@ -314,6 +416,7 @@ function renderArena(session: GameSession): string {
       ${renderWallSegments(session, viewport)}
       ${spawnMarkers}
       ${fogTiles}
+      ${renderProjectiles(session, viewport)}
       ${renderPlayerOverlay(session, viewport)}
     </div>
   `;
@@ -333,7 +436,7 @@ function renderMiniMap(session: GameSession): string {
           (tile) => `
             <div
               class="minimap-segment"
-              style="left:${tile.column * 5}px; top:${tile.row * 5}px;"
+              style="left:${tile.column * 3}px; top:${tile.row * 3}px;"
             ></div>
           `,
         )
@@ -344,14 +447,14 @@ function renderMiniMap(session: GameSession): string {
           (tile) => `
             <div
               class="minimap-spawn-marker"
-              style="left:${tile.column * 5 + 1}px; top:${tile.row * 5 + 1}px;"
+              style="left:${tile.column * 3 + 0.5}px; top:${tile.row * 3 + 0.5}px;"
             ></div>
           `,
         )
         .join("")}
       <div
         class="minimap-player-dot"
-        style="left:${playerTile.column * 5 + 0.5}px; top:${playerTile.row * 5 + 0.5}px;"
+        style="left:${playerTile.column * 3}px; top:${playerTile.row * 3}px;"
       ></div>
     </div>
   `;
@@ -361,7 +464,7 @@ function renderHud(session: GameSession): string {
   const { definition, resources } = session.player;
 
   return `
-    <div class="arena-hud">
+    <div class="arena-hud" aria-label="Player resources">
       <div class="hud-chip">
         <strong>HP</strong>
         <span>${Math.round(resources.health)} / ${definition.stats.health.max}</span>
@@ -532,6 +635,97 @@ function renderCharacterPanel(session: GameSession): string {
   `;
 }
 
+function renderWeaponPanel(session: GameSession): string {
+  const weaponItems = getWeaponItems(session);
+  const selectedWeapon =
+    (session.selectedWeaponId
+      ? session.catalog.indexes.itemsById[session.selectedWeaponId]
+      : undefined) ?? weaponItems[0];
+
+  if (!selectedWeapon || selectedWeapon.effect.type !== "weapon-attack") {
+    return "";
+  }
+
+  const previewSpriteUrl = selectedWeapon.spriteKey
+    ? itemSpriteUrlByKey[selectedWeapon.spriteKey]
+    : undefined;
+
+  return `
+    <aside class="panel control-panel">
+      <div class="selector-group">
+        <p class="eyebrow">Weapon</p>
+        <h3>Armory</h3>
+        <p class="selector-meta">
+          Temporary weapon selection wired from content packs.
+        </p>
+      </div>
+      <div class="weapon-preview">
+        <div class="weapon-preview-stage">
+          ${
+            previewSpriteUrl
+              ? `
+                  <img
+                    class="weapon-preview-image"
+                    src="${previewSpriteUrl}"
+                    alt="${selectedWeapon.name}"
+                  />
+                `
+              : ""
+          }
+        </div>
+        <div class="weapon-preview-copy">
+          <h4>${selectedWeapon.name}</h4>
+          <p class="selector-meta">${selectedWeapon.description}</p>
+          <div class="weapon-stat-list">
+            <span class="weapon-stat">DMG ${selectedWeapon.effect.damage}</span>
+            <span class="weapon-stat">${selectedWeapon.effect.attackPeriodSeconds}s atk</span>
+            <span class="weapon-stat">STA ${selectedWeapon.effect.staminaCost}</span>
+            <span class="weapon-stat">${formatDamageType(selectedWeapon.effect.damageType)}</span>
+            ${
+              selectedWeapon.effect.projectileSpeed
+                ? `<span class="weapon-stat">SPD ${selectedWeapon.effect.projectileSpeed}</span>`
+                : ""
+            }
+          </div>
+        </div>
+      </div>
+      <div class="weapon-grid">
+        ${weaponItems
+          .map((weapon) => {
+            const isActive = session.selectedWeaponId === weapon.id;
+            const spriteUrl = weapon.spriteKey
+              ? itemSpriteUrlByKey[weapon.spriteKey]
+              : undefined;
+
+            return `
+              <button
+                class="weapon-card${isActive ? " is-active" : ""}"
+                data-weapon-id="${weapon.id}"
+                type="button"
+              >
+                <span class="weapon-card-stage">
+                  ${
+                    spriteUrl
+                      ? `
+                          <img
+                            class="weapon-card-image"
+                            src="${spriteUrl}"
+                            alt="${weapon.name}"
+                          />
+                        `
+                      : ""
+                  }
+                </span>
+                <span class="weapon-card-label">${weapon.name}</span>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </aside>
+  `;
+}
+
 export function renderGame(session: GameSession): string {
   const isFullscreen = Boolean(document.fullscreenElement);
 
@@ -541,28 +735,33 @@ export function renderGame(session: GameSession): string {
         <div class="control-stack">
           ${renderMapGenerationPanel(session)}
           ${renderCharacterPanel(session)}
+          ${renderWeaponPanel(session)}
         </div>
-        <section class="panel arena-stage" data-arena-root>
+        <section class="panel arena-stage">
           <div class="arena-panel">
-            <div class="arena-header">
-              <div>
+            <div class="arena-topbar">
+              <div class="arena-heading">
                 <p class="eyebrow">Arena</p>
                 <h2>${session.map.name}</h2>
-                ${renderHud(session)}
               </div>
-              <div class="arena-overview">
-                <div class="minimap">
-                  ${renderMiniMap(session)}
-                </div>
-              <p class="arena-meta">
-                  ${session.map.archetype} · ${session.map.size.columns}x${session.map.size.rows} · free movement viewport
-                </p>
-                <button class="selector-button" data-fullscreen-toggle type="button">
-                  ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
-                </button>
-              </div>
+              <button class="selector-button" data-fullscreen-toggle type="button">
+                ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
+              </button>
             </div>
             <div class="arena-grid" style="--arena-width:${viewportColumns * renderCellSize}px; --arena-height:${viewportRows * renderCellSize}px;">
+              <div class="arena-overlay-top arena-overlay-top-left">
+                ${renderHud(session)}
+              </div>
+              <div class="arena-overlay-top arena-overlay-top-right">
+                <div class="arena-overview">
+                  <div class="minimap">
+                    ${renderMiniMap(session)}
+                  </div>
+                  <p class="arena-meta">
+                    ${session.map.archetype} · ${session.map.size.columns}x${session.map.size.rows}
+                  </p>
+                </div>
+              </div>
               ${renderArena(session)}
             </div>
           </div>

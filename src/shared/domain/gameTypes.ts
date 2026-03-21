@@ -2,8 +2,9 @@ export type CharacterId = string;
 export type ItemId = string;
 export type MapId = string;
 
-export type ItemKind = "weapon-mod" | "active" | "passive";
+export type ItemKind = "weapon" | "weapon-mod" | "active" | "passive";
 export type ItemRarity = "common" | "rare" | "epic";
+export type DamageType = "slash" | "thrust" | "bash" | "projectile";
 export type MapArchetype = "shattered" | "enclosed";
 export type MapDensity = "sparse" | "standard" | "dense";
 export type MapLayoutSize = "small" | "medium" | "large";
@@ -27,6 +28,14 @@ export interface CharacterDefinition {
 
 export type ItemEffect =
   | {
+      type: "weapon-attack";
+      damage: number;
+      attackPeriodSeconds: number;
+      staminaCost: number;
+      damageType: DamageType;
+      projectileSpeed?: number;
+    }
+  | {
       type: "projectile-burst";
       count: number;
       spreadDegrees: number;
@@ -40,8 +49,10 @@ export type ItemEffect =
 export interface ItemDefinition {
   id: ItemId;
   name: string;
+  description: string;
   kind: ItemKind;
   rarity: ItemRarity;
+  spriteKey?: string;
   effect: ItemEffect;
 }
 

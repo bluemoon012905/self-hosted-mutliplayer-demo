@@ -12,6 +12,7 @@ if (!app) {
 }
 
 const appRoot = app;
+appRoot.dataset.arenaRoot = "true";
 
 async function bootstrap() {
   const catalog = await loadCatalog({

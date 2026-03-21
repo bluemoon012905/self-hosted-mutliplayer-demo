@@ -1,0 +1,261 @@
+{
+  "tags": [
+    {
+      "id": "tag_4ccf8629",
+      "name": "item",
+      "color": "#4577ff",
+      "visible": false,
+      "rootNodeId": null,
+      "stats": {
+        "quantitative": {},
+        "qualitative": {}
+      }
+    },
+    {
+      "id": "tag_58daeca3",
+      "name": "skill",
+      "color": "#d747ff",
+      "visible": false,
+      "rootNodeId": null,
+      "stats": {
+        "quantitative": {},
+        "qualitative": {}
+      }
+    },
+    {
+      "id": "tag_2eea7a03",
+      "name": "consumable",
+      "color": "#47ff97",
+      "visible": false,
+      "rootNodeId": null,
+      "stats": {
+        "quantitative": {},
+        "qualitative": {}
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node_0b9668d2",
+      "name": "bow",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {
+          "attack period": 2,
+          "Damage": 25,
+          "projectile speed": 10,
+          "stamina cost": 40
+        },
+        "qualitative": {
+          "damage type": "proj"
+        }
+      },
+      "statOrder": [
+        "quantitative:Damage",
+        "quantitative:attack period",
+        "quantitative:stamina cost",
+        "qualitative:damage type",
+        "quantitative:projectile speed"
+      ],
+      "description": ""
+    },
+    {
+      "id": "node_20d25df1",
+      "name": "spear",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {
+          "attack period": 0.7,
+          "Damage": 30,
+          "stamina cost": 25
+        },
+        "qualitative": {
+          "damage type": "thrust"
+        }
+      },
+      "statOrder": [
+        "quantitative:Damage",
+        "quantitative:attack period",
+        "quantitative:stamina cost",
+        "qualitative:damage type"
+      ],
+      "description": ""
+    },
+    {
+      "id": "node_55891323",
+      "name": "weapons",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {},
+        "qualitative": {}
+      },
+      "statOrder": [],
+      "description": ""
+    },
+    {
+      "id": "node_694700ae",
+      "name": "staff",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {
+          "attack period": 0.5,
+          "Damage": 20,
+          "stamina cost": 20
+        },
+        "qualitative": {
+          "damage type": "bash"
+        }
+      },
+      "statOrder": [
+        "quantitative:Damage",
+        "quantitative:attack period",
+        "quantitative:stamina cost",
+        "qualitative:damage type"
+      ],
+      "description": ""
+    },
+    {
+      "id": "node_7d60564a",
+      "name": "crossbow",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {
+          "attack period": 5,
+          "Damage": 40,
+          "projectile speed": 15,
+          "stamina cost": 70
+        },
+        "qualitative": {
+          "damage type": "proj"
+        }
+      },
+      "statOrder": [
+        "quantitative:Damage",
+        "quantitative:attack period",
+        "quantitative:stamina cost",
+        "qualitative:damage type",
+        "quantitative:projectile speed"
+      ],
+      "description": ""
+    },
+    {
+      "id": "node_9a8d4098",
+      "name": "sword",
+      "tagIds": [
+        "tag_4ccf8629"
+      ],
+      "stats": {
+        "quantitative": {
+          "attack period": 0.5,
+          "Damage": 40,
+          "stamina cost": 30
+        },
+        "qualitative": {
+          "damage type": "slash"
+        }
+      },
+      "statOrder": [
+        "quantitative:Damage",
+        "quantitative:attack period",
+        "quantitative:stamina cost",
+        "qualitative:damage type"
+      ],
+      "description": ""
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_37194966",
+      "from": "node_55891323",
+      "to": "node_7d60564a",
+      "type": "next"
+    },
+    {
+      "id": "edge_39a109c0",
+      "from": "node_55891323",
+      "to": "node_0b9668d2",
+      "type": "next"
+    },
+    {
+      "id": "edge_4e360d95",
+      "from": "node_55891323",
+      "to": "node_20d25df1",
+      "type": "next"
+    },
+    {
+      "id": "edge_a1cc2a6d",
+      "from": "node_55891323",
+      "to": "node_694700ae",
+      "type": "next"
+    },
+    {
+      "id": "edge_f246a55f",
+      "from": "node_55891323",
+      "to": "node_9a8d4098",
+      "type": "next"
+    }
+  ],
+  "statStyles": [
+    {
+      "id": "style_035db27e",
+      "key": "Damage",
+      "kind": "quantitative",
+      "color": "#ff0000"
+    },
+    {
+      "id": "style_1a158ace",
+      "key": "damage type",
+      "kind": "qualitative",
+      "color": "#4a2acb"
+    },
+    {
+      "id": "style_348eb081",
+      "key": "attack period",
+      "kind": "quantitative",
+      "color": "#9fb2d9"
+    },
+    {
+      "id": "style_4b10590d",
+      "key": "mana cost",
+      "kind": "quantitative",
+      "color": "#246dff"
+    },
+    {
+      "id": "style_736e113b",
+      "key": "stamina cost",
+      "kind": "quantitative",
+      "color": "#02f23e"
+    },
+    {
+      "id": "style_79351332",
+      "key": "projectile speed",
+      "kind": "quantitative",
+      "color": "#9fb2d9"
+    },
+    {
+      "id": "style_ccd81225",
+      "key": "proj speed",
+      "kind": "qualitative",
+      "color": "#f0a400"
+    }
+  ],
+  "viewState": {
+    "viewport": {
+      "scale": 1,
+      "tx": 0,
+      "ty": 0
+    },
+    "manualNodePositions": {},
+    "showRootNodesOnly": false
+  }
+}

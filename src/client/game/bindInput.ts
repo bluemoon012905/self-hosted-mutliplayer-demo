@@ -3,9 +3,11 @@ import {
   rerollMap,
   setMapLayoutSize,
   setPlayerSprite,
+  setSelectedWeapon,
   selectMapTemplate,
   setMovementKeyState,
   setMapDensity,
+  triggerRoll,
   toggleInventory,
 } from "./gameSession";
 import type { GameSession } from "./runtimeTypes";
@@ -22,7 +24,7 @@ export function bindInput(
     }
 
     const actionNode = target.closest<HTMLElement>(
-      "[data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-map-reroll], [data-fullscreen-toggle]",
+      "[data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-map-reroll], [data-fullscreen-toggle]",
     );
 
     if (!actionNode) {
@@ -55,6 +57,12 @@ export function bindInput(
 
     if (actionNode.dataset.playerSprite) {
       setPlayerSprite(session, actionNode.dataset.playerSprite);
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.weaponId) {
+      setSelectedWeapon(session, actionNode.dataset.weaponId);
       render();
       return;
     }
@@ -106,6 +114,15 @@ export function bindInput(
         if (setMovementKeyState(session, "right", true)) {
           event.preventDefault();
         }
+        return;
+      case " ":
+        if (event.repeat) {
+          return;
+        }
+        if (triggerRoll(session)) {
+          render();
+        }
+        event.preventDefault();
         return;
       case "e":
         if (event.repeat) {

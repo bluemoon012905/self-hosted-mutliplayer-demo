@@ -1,9 +1,11 @@
 import type { ItemDefinitionInput } from "../shared/domain/rawDefinitions";
+import { buildWeaponPackItems } from "./item-packs/weaponPack";
 
-export const rawItems: ItemDefinitionInput[] = [
+const baseItems: ItemDefinitionInput[] = [
   {
     id: "burst-shot",
     name: "Burst Shot",
+    description: "Triple-shot modifier that spreads projectiles slightly.",
     kind: "weapon-mod",
     rarity: "common",
     effect: {
@@ -15,6 +17,7 @@ export const rawItems: ItemDefinitionInput[] = [
   {
     id: "shield-pulse",
     name: "Shield Pulse",
+    description: "Temporary defensive pulse that grants bonus shield value.",
     kind: "active",
     rarity: "rare",
     effect: {
@@ -23,4 +26,9 @@ export const rawItems: ItemDefinitionInput[] = [
       value: 35,
     },
   },
+];
+
+export const rawItems: ItemDefinitionInput[] = [
+  ...baseItems,
+  ...buildWeaponPackItems(),
 ];

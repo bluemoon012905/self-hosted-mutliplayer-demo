@@ -1,4 +1,10 @@
-import type { ItemKind, ItemRarity, MapArchetype, MapDensity } from "./gameTypes";
+import type {
+  DamageType,
+  ItemKind,
+  ItemRarity,
+  MapArchetype,
+  MapDensity,
+} from "./gameTypes";
 
 export interface CharacterDefinitionInput {
   id: string;
@@ -19,19 +25,33 @@ export interface BurstShotEffectInput {
   spreadDegrees: number;
 }
 
+export interface WeaponAttackEffectInput {
+  type: "weapon-attack";
+  damage: number;
+  attackPeriodSeconds: number;
+  staminaCost: number;
+  damageType: DamageType;
+  projectileSpeed?: number;
+}
+
 export interface TemporaryShieldEffectInput {
   type: "temporary-shield";
   durationMs: number;
   value: number;
 }
 
-export type ItemEffectInput = BurstShotEffectInput | TemporaryShieldEffectInput;
+export type ItemEffectInput =
+  | WeaponAttackEffectInput
+  | BurstShotEffectInput
+  | TemporaryShieldEffectInput;
 
 export interface ItemDefinitionInput {
   id: string;
   name: string;
+  description?: string;
   kind: ItemKind;
   rarity: ItemRarity;
+  spriteKey?: string;
   effect: ItemEffectInput;
 }
 
