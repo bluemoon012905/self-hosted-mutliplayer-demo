@@ -12,7 +12,11 @@ import type {
 } from "../../shared/domain/gameTypes";
 import type {
   AttackEvent,
+  EnemyRuntime,
+  GameFlow,
+  GameMode,
   GameSession,
+  MeleeAttackRuntime,
   PlayerRuntime,
   ProjectileRuntime,
 } from "./runtimeTypes";
@@ -27,6 +31,10 @@ const rollCost = 40;
 const rollDurationMs = 180;
 const rollSpeedMultiplier = 3.6;
 const projectileLifetimeMs = 1400;
+const meleeAttackLifetimeMs = 120;
+const meleeAttackRadiusMultiplier = 0.95;
+const meleeAttackDistanceMultiplier = 1.95;
+const maxLevelEnemiesPerWeapon = 4;
 const availableSpriteKeys = [
   "turtle_glasses",
   "turtle_cowboy",
@@ -102,9 +110,31 @@ function buildPlayer(
       x: 1,
       y: 0,
     },
+    attackAnimationRemainingMs: 0,
     role: "me",
     spriteKey: "turtle_glasses",
   };
+}
+
+function getDefaultWeaponId(catalog: GameCatalog): string | null {
+  return catalog.items.find((item) => item.kind === "weapon")?.id ?? null;
+}
+
+function buildEmptyInput(): GameSession["input"] {
+  return {
+    up: false,
+    down: false,
+    left: false,
+    right: false,
+  };
+}
+
+function randomSpriteKey(): string {
+  return pickRandomTile([...availableSpriteKeys]);
+}
+
+function buildLevelEnemyCounts(weaponIds: string[]): Record<string, number> {
+  return Object.fromEntries(weaponIds.map((weaponId) => [weaponId, 0]));
 }
 
 export function createGameSession(catalog: GameCatalog): GameSession {
@@ -119,9 +149,12 @@ export function createGameSession(catalog: GameCatalog): GameSession {
   const availableWeaponIds = catalog.items
     .filter((item) => item.kind === "weapon")
     .map((item) => item.id);
+  const defaultWeaponId = availableWeaponIds[0] ?? null;
 
   return {
     catalog,
+    flow: "menu",
+    mode: null,
     selectedMapTemplateId: template.id,
     selectedDensity: density,
     selectedLayoutSize: layoutSize,
@@ -129,18 +162,23 @@ export function createGameSession(catalog: GameCatalog): GameSession {
     availableLayoutSizes: ["small", "medium", "large"],
     availableSpriteKeys: [...availableSpriteKeys],
     availableWeaponIds,
-    selectedWeaponId: availableWeaponIds[0] ?? null,
+    selectedWeaponId: defaultWeaponId,
+    setupLoadoutWeaponIds: [defaultWeaponId, availableWeaponIds[1] ?? defaultWeaponId],
+    activeWeaponSlot: 0,
+    levelEnemyCounts: buildLevelEnemyCounts(availableWeaponIds),
     map,
     player,
-    input: {
-      up: false,
-      down: false,
-      left: false,
-      right: false,
-    },
+    enemies: [],
+    input: buildEmptyInput(),
     inventoryItems: buildInventory(catalog, player.definition.inventory),
     attackLog: [],
     projectiles: [],
+    meleeAttacks: [],
+    collapsedPanels: {
+      mapLab: false,
+      character: false,
+      weapon: false,
+    },
   };
 }
 
@@ -195,6 +233,24 @@ function movePlayerAxis(
 
   if (!collidesWithWalls(session.map, session.player.position.x, nextY, session.player.radius)) {
     session.player.position.y = nextY;
+  }
+}
+
+function moveActorAxis(
+  map: GameSession["map"],
+  actor: {
+    position: { x: number; y: number };
+    radius: number;
+  },
+  nextX: number,
+  nextY: number,
+): void {
+  if (!collidesWithWalls(map, nextX, actor.position.y, actor.radius)) {
+    actor.position.x = nextX;
+  }
+
+  if (!collidesWithWalls(map, actor.position.x, nextY, actor.radius)) {
+    actor.position.y = nextY;
   }
 }
 
@@ -285,6 +341,108 @@ function movePlayerRolling(session: GameSession, deltaMs: number): number {
   );
 }
 
+function buildEnemy(
+  session: GameSession,
+  weaponId: string,
+  spawnTile: TilePoint,
+  index: number,
+): EnemyRuntime {
+  const character = session.catalog.characters[0];
+  const definition = createPlayerDefinition(
+    `enemy-${weaponId}-${index}`,
+    `Enemy ${index + 1}`,
+    character,
+  );
+
+  return {
+    id: `enemy-${weaponId}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+    definition,
+    weaponId,
+    position: tileCenter(session.map, spawnTile),
+    radius: session.map.tileSize * playerHitboxRadiusRatio,
+    facing: "left",
+    isMoving: false,
+    movementSpeed: 0,
+    walkCycle: 0,
+    attackAnimationRemainingMs: 0,
+    role: "enemy",
+    spriteKey: randomSpriteKey(),
+  };
+}
+
+function rebuildLevelEnemies(session: GameSession): void {
+  const requestedWeaponIds = Object.entries(session.levelEnemyCounts)
+    .flatMap(([weaponId, count]) =>
+      Array.from({ length: Math.max(0, count) }, () => weaponId),
+    );
+  const candidateTiles = session.map.spawnTiles.filter((tile) => {
+    const playerTile = worldToTile(
+      session.map,
+      session.player.position.x,
+      session.player.position.y,
+    );
+
+    return tile.column !== playerTile.column || tile.row !== playerTile.row;
+  });
+
+  session.enemies = requestedWeaponIds.map((weaponId, index) => {
+    const spawnTile = candidateTiles[index % Math.max(candidateTiles.length, 1)] ?? session.map.spawnTiles[0];
+    return buildEnemy(session, weaponId, spawnTile, index);
+  });
+}
+
+function updateEnemies(session: GameSession, deltaMs: number): boolean {
+  let moved = false;
+
+  for (const enemy of session.enemies) {
+    const deltaX = session.player.position.x - enemy.position.x;
+    const deltaY = session.player.position.y - enemy.position.y;
+    const distanceToPlayer = Math.hypot(deltaX, deltaY);
+
+    enemy.attackAnimationRemainingMs = Math.max(
+      0,
+      enemy.attackAnimationRemainingMs - deltaMs,
+    );
+
+    if (distanceToPlayer < session.map.tileSize * 0.9) {
+      enemy.isMoving = false;
+      enemy.movementSpeed = 0;
+      continue;
+    }
+
+    const normalizedX = deltaX / Math.max(distanceToPlayer, 1);
+    const normalizedY = deltaY / Math.max(distanceToPlayer, 1);
+    const speedPerSecond = enemy.definition.stats.speed * 52;
+    const distance = (speedPerSecond * deltaMs) / 1000;
+    const nextX = enemy.position.x + normalizedX * distance;
+    const nextY = enemy.position.y + normalizedY * distance;
+    const previousX = enemy.position.x;
+    const previousY = enemy.position.y;
+
+    updateFacing(
+      { player: enemy } as Pick<GameSession, "player"> as GameSession,
+      normalizedX,
+      normalizedY,
+    );
+    moveActorAxis(session.map, enemy, nextX, nextY);
+
+    const movedDistance = Math.hypot(
+      enemy.position.x - previousX,
+      enemy.position.y - previousY,
+    );
+    enemy.isMoving = movedDistance > 0;
+    enemy.movementSpeed = deltaMs > 0 ? movedDistance / (deltaMs / 1000) : 0;
+
+    if (enemy.isMoving) {
+      enemy.walkCycle +=
+        deltaMs * (enemy.movementSpeed / Math.max(speedPerSecond, 1));
+      moved = true;
+    }
+  }
+
+  return moved;
+}
+
 function angleForAttackSlot(slot: AttackSlot): number {
   switch (slot) {
     case "left":
@@ -313,6 +471,15 @@ function getSelectedWeapon(session: GameSession): ItemDefinition | null {
   }
 
   return session.catalog.indexes.itemsById[session.selectedWeaponId] ?? null;
+}
+
+function syncInventorySelection(session: GameSession): void {
+  if (session.mode === "sandbox") {
+    return;
+  }
+
+  const nextWeaponId = session.setupLoadoutWeaponIds[session.activeWeaponSlot];
+  session.selectedWeaponId = nextWeaponId ?? session.setupLoadoutWeaponIds[0] ?? null;
 }
 
 function spawnProjectile(
@@ -345,6 +512,30 @@ function spawnProjectile(
   session.projectiles = [...session.projectiles, projectile];
 }
 
+function spawnMeleeAttack(
+  session: GameSession,
+  slot: AttackSlot,
+): void {
+  const baseDirection = facingToVector(session.player.facing);
+  const direction = rotateVector(
+    baseDirection.x,
+    baseDirection.y,
+    angleForAttackSlot(slot),
+  );
+  const distance = session.player.radius * meleeAttackDistanceMultiplier;
+  const meleeAttack: MeleeAttackRuntime = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    x: session.player.position.x + direction.x * distance,
+    y: session.player.position.y + direction.y * distance,
+    radius: session.player.radius * meleeAttackRadiusMultiplier,
+    directionX: direction.x,
+    directionY: direction.y,
+    lifetimeMs: meleeAttackLifetimeMs,
+  };
+
+  session.meleeAttacks = [...session.meleeAttacks, meleeAttack];
+}
+
 function updateProjectiles(session: GameSession, deltaMs: number): boolean {
   let moved = false;
 
@@ -368,6 +559,17 @@ function updateProjectiles(session: GameSession, deltaMs: number): boolean {
   });
 
   return moved;
+}
+
+function updateMeleeAttacks(session: GameSession, deltaMs: number): boolean {
+  const hadAttacks = session.meleeAttacks.length > 0;
+
+  session.meleeAttacks = session.meleeAttacks.filter((attack) => {
+    attack.lifetimeMs -= deltaMs;
+    return attack.lifetimeMs > 0;
+  });
+
+  return hadAttacks;
 }
 
 export function triggerRoll(session: GameSession): boolean {
@@ -467,7 +669,109 @@ export function setSelectedWeapon(session: GameSession, itemId: string): void {
     return;
   }
 
+  if (session.mode !== "sandbox") {
+    session.setupLoadoutWeaponIds[session.activeWeaponSlot] = itemId;
+  }
+
   session.selectedWeaponId = itemId;
+}
+
+export function setSetupLoadoutWeapon(
+  session: GameSession,
+  slot: 0 | 1,
+  itemId: string,
+): void {
+  if (!session.availableWeaponIds.includes(itemId)) {
+    return;
+  }
+
+  session.setupLoadoutWeaponIds[slot] = itemId;
+  if (session.activeWeaponSlot === slot) {
+    session.selectedWeaponId = itemId;
+  }
+}
+
+export function adjustLevelEnemyCount(
+  session: GameSession,
+  weaponId: string,
+  delta: number,
+): void {
+  if (!(weaponId in session.levelEnemyCounts)) {
+    return;
+  }
+
+  session.levelEnemyCounts[weaponId] = Math.max(
+    0,
+    Math.min(
+      maxLevelEnemiesPerWeapon,
+      (session.levelEnemyCounts[weaponId] ?? 0) + delta,
+    ),
+  );
+}
+
+export function setActiveWeaponSlot(
+  session: GameSession,
+  slot: 0 | 1,
+): boolean {
+  if (session.mode === "sandbox") {
+    return false;
+  }
+
+  const weaponId = session.setupLoadoutWeaponIds[slot];
+
+  if (!weaponId) {
+    return false;
+  }
+
+  session.activeWeaponSlot = slot;
+  session.selectedWeaponId = weaponId;
+  return true;
+}
+
+export function goToMenu(session: GameSession): void {
+  session.flow = "menu";
+  session.mode = null;
+  session.selectedWeaponId = session.setupLoadoutWeaponIds[0] ?? getDefaultWeaponId(session.catalog);
+  session.projectiles = [];
+  session.meleeAttacks = [];
+  session.enemies = [];
+  session.attackLog = [];
+  session.input = buildEmptyInput();
+}
+
+export function selectMode(session: GameSession, mode: GameMode): void {
+  session.mode = mode;
+  session.projectiles = [];
+  session.meleeAttacks = [];
+  session.attackLog = [];
+  session.input = buildEmptyInput();
+  session.activeWeaponSlot = 0;
+  syncInventorySelection(session);
+
+  if (mode === "sandbox") {
+    session.flow = "match";
+    rerollMap(session);
+    return;
+  }
+
+  session.flow = "setup";
+}
+
+export function startMatch(session: GameSession): void {
+  if (!session.mode) {
+    return;
+  }
+
+  syncInventorySelection(session);
+  session.flow = "match";
+  rerollMap(session);
+}
+
+export function togglePanelCollapse(
+  session: GameSession,
+  panel: keyof GameSession["collapsedPanels"],
+): void {
+  session.collapsedPanels[panel] = !session.collapsedPanels[panel];
 }
 
 export function rerollMap(session: GameSession): void {
@@ -496,23 +800,30 @@ export function rerollMap(session: GameSession): void {
   session.player.isRolling = false;
   session.player.rollTimeRemainingMs = 0;
   session.player.rollDirection = { x: 1, y: 0 };
+  session.player.attackAnimationRemainingMs = 0;
   session.player.resources = {
     health: session.player.definition.stats.health.max,
     stamina: session.player.definition.stats.stamina.max,
     mana: session.player.definition.stats.mana.max,
   };
-  session.input = {
-    up: false,
-    down: false,
-    left: false,
-    right: false,
-  };
+  session.input = buildEmptyInput();
   session.attackLog = [];
   session.projectiles = [];
+  session.meleeAttacks = [];
+  session.enemies = [];
   session.player.inventoryOpen = false;
+  syncInventorySelection(session);
+
+  if (session.mode === "levels" && session.flow === "match") {
+    rebuildLevelEnemies(session);
+  }
 }
 
 export function tickSession(session: GameSession, deltaMs: number): boolean {
+  if (session.flow !== "match") {
+    return false;
+  }
+
   const previous = { ...session.player.resources };
   const movedDistance = session.player.isRolling
     ? movePlayerRolling(session, deltaMs)
@@ -549,10 +860,19 @@ export function tickSession(session: GameSession, deltaMs: number): boolean {
     deltaMs,
   );
   const projectileMoved = updateProjectiles(session, deltaMs);
+  const meleeUpdated = updateMeleeAttacks(session, deltaMs);
+  const enemiesMoved = updateEnemies(session, deltaMs);
+  session.player.attackAnimationRemainingMs = Math.max(
+    0,
+    session.player.attackAnimationRemainingMs - deltaMs,
+  );
 
   return (
     moved ||
+    enemiesMoved ||
     projectileMoved ||
+    meleeUpdated ||
+    session.player.attackAnimationRemainingMs > 0 ||
     previous.health !== session.player.resources.health ||
     previous.stamina !== session.player.resources.stamina ||
     previous.mana !== session.player.resources.mana
@@ -571,7 +891,12 @@ export function attack(session: GameSession, slot: AttackSlot): void {
       0,
       session.player.resources.stamina - selectedWeapon.effect.staminaCost,
     );
-    spawnProjectile(session, selectedWeapon, slot);
+    if (selectedWeapon.effect.damageType === "projectile") {
+      spawnProjectile(session, selectedWeapon, slot);
+    } else {
+      spawnMeleeAttack(session, slot);
+    }
+    session.player.attackAnimationRemainingMs = meleeAttackLifetimeMs;
   }
 
   const event: AttackEvent = {

@@ -1,6 +1,6 @@
 import type { ItemDefinition, TilePoint } from "../../shared/domain/gameTypes";
 import { getPlayerTile } from "./gameSession";
-import type { GameSession } from "./runtimeTypes";
+import type { EnemyRuntime, GameSession, MeleeAttackRuntime } from "./runtimeTypes";
 import bowUrl from "../../../item_sprite/bow.png";
 import breadUrl from "../../../item_sprite/bread.png";
 import crossbowUrl from "../../../item_sprite/crossbow.png";
@@ -193,39 +193,53 @@ function buildViewport(session: GameSession): {
   };
 }
 
-function renderPlayerOverlay(
+function renderActorOverlay(
+  actor: Pick<
+    EnemyRuntime | GameSession["player"],
+    | "position"
+    | "radius"
+    | "role"
+    | "spriteKey"
+    | "facing"
+    | "movementSpeed"
+    | "isMoving"
+    | "walkCycle"
+    | "attackAnimationRemainingMs"
+    | "definition"
+  >,
+  weaponId: string | null | undefined,
   session: GameSession,
   viewport: ReturnType<typeof buildViewport>,
 ): string {
   const left =
-    ((session.player.position.x - viewport.originX) / session.map.tileSize) *
+    ((actor.position.x - viewport.originX) / session.map.tileSize) *
     renderCellSize;
   const top =
-    ((session.player.position.y - viewport.originY) / session.map.tileSize) *
+    ((actor.position.y - viewport.originY) / session.map.tileSize) *
     renderCellSize;
   const hitboxWidth =
-    ((session.player.radius * 2) * renderCellSize) / session.map.tileSize;
+    ((actor.radius * 2) * renderCellSize) / session.map.tileSize;
   const hitboxHeight = hitboxWidth;
   const spriteWidth =
-    ((session.player.radius * 2.75) * renderCellSize) / session.map.tileSize;
+    ((actor.radius * 2.75) * renderCellSize) / session.map.tileSize;
   const spriteHeight =
-    ((session.player.radius * 3.15) * renderCellSize) / session.map.tileSize;
+    ((actor.radius * 3.15) * renderCellSize) / session.map.tileSize;
   const spriteTop = -(hitboxHeight * 0.9 + spriteHeight * 0.58) + 32;
-  const roleClass = `player-role-${session.player.role}`;
+  const roleClass = `player-role-${actor.role}`;
   const spriteUrl =
-    spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
+    spriteUrlByKey[actor.spriteKey] ?? spriteUrlByKey.turtle_glasses;
   const facingClass =
-    session.player.facing === "right" ? "is-facing-left" : "is-facing-right";
-  const maxSpeedPerSecond = session.player.definition.stats.speed * 52;
+    actor.facing === "right" ? "is-facing-left" : "is-facing-right";
+  const maxSpeedPerSecond = actor.definition.stats.speed * 52;
   const speedRatio = Math.min(
     1,
-    session.player.movementSpeed / Math.max(maxSpeedPerSecond, 1),
+    actor.movementSpeed / Math.max(maxSpeedPerSecond, 1),
   );
-  const wobbleDegrees = session.player.isMoving
-    ? Math.sin(session.player.walkCycle / 70) * 5 * speedRatio
+  const wobbleDegrees = actor.isMoving
+    ? Math.sin(actor.walkCycle / 70) * 5 * speedRatio
     : 0;
-  const selectedWeapon = session.selectedWeaponId
-    ? session.catalog.indexes.itemsById[session.selectedWeaponId]
+  const selectedWeapon = weaponId
+    ? session.catalog.indexes.itemsById[weaponId]
     : undefined;
   const weaponSpriteUrl =
     selectedWeapon?.spriteKey && itemSpriteUrlByKey[selectedWeapon.spriteKey]
@@ -235,16 +249,23 @@ function renderPlayerOverlay(
     ((session.player.radius * 1.55) * renderCellSize) / session.map.tileSize;
   const weaponHeight =
     ((session.player.radius * 1.55) * renderCellSize) / session.map.tileSize;
-  const weaponLeft = session.player.facing === "left" ? -hitboxWidth * 0.34 : hitboxWidth * 0.34;
+  const weaponLeft = actor.facing === "left" ? -hitboxWidth * 0.34 : hitboxWidth * 0.34;
   const weaponTop = -(hitboxHeight * 0.18);
   const weaponRotation =
-    session.player.facing === "up"
+    actor.facing === "up"
       ? -85
-      : session.player.facing === "down"
+      : actor.facing === "down"
         ? 85
-        : session.player.facing === "left"
+        : actor.facing === "left"
           ? -32
           : 32;
+  const attackSwingProgress = Math.min(
+    1,
+    actor.attackAnimationRemainingMs / 120,
+  );
+  const attackSwingDegrees = attackSwingProgress > 0
+    ? (actor.facing === "left" ? -1 : 1) * (18 + attackSwingProgress * 26)
+    : 0;
 
   return `
     <div
@@ -258,7 +279,7 @@ function renderPlayerOverlay(
                 class="arena-player-weapon"
                 src="${weaponSpriteUrl}"
                 alt="${selectedWeapon?.name ?? "weapon"}"
-                style="width:${weaponWidth}px; height:${weaponHeight}px; left:${weaponLeft}px; top:${weaponTop}px; --weapon-rotation:${weaponRotation}deg;"
+                style="width:${weaponWidth}px; height:${weaponHeight}px; left:${weaponLeft}px; top:${weaponTop}px; --weapon-rotation:${weaponRotation + attackSwingDegrees}deg;"
               />
             `
           : ""
@@ -266,13 +287,61 @@ function renderPlayerOverlay(
       <img
         class="arena-player-sprite"
         src="${spriteUrl}"
-        alt="${session.player.definition.name}"
+        alt="${actor.definition.name}"
         style="width:${spriteWidth}px; height:${spriteHeight}px; top:${spriteTop}px; --wobble-rotation:${wobbleDegrees}deg;"
       />
       <div
         class="arena-player-hitbox"
         style="width:${hitboxWidth}px; height:${hitboxHeight}px;"
       ></div>
+    </div>
+  `;
+}
+
+function renderPlayerOverlay(
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
+  return renderActorOverlay(
+    session.player,
+    session.selectedWeaponId,
+    session,
+    viewport,
+  );
+}
+
+function renderEnemies(
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
+  return session.enemies
+    .map((enemy) => renderActorOverlay(enemy, enemy.weaponId, session, viewport))
+    .join("");
+}
+
+function renderMeleeAttack(
+  attack: MeleeAttackRuntime,
+  session: GameSession,
+  viewport: ReturnType<typeof buildViewport>,
+): string {
+  const left =
+    ((attack.x - viewport.originX) / session.map.tileSize) * renderCellSize;
+  const top =
+    ((attack.y - viewport.originY) / session.map.tileSize) * renderCellSize;
+  const size = ((attack.radius * 2) * renderCellSize) / session.map.tileSize;
+  const rotation =
+    (Math.atan2(attack.directionY, attack.directionX) * 180) / Math.PI;
+  const opacity = Math.min(1, attack.lifetimeMs / 120);
+
+  return `
+    <div
+      class="arena-melee-attack"
+      style="left:${left}px; top:${top}px; width:${size}px; height:${size}px; --attack-rotation:${rotation}deg; --attack-opacity:${opacity};"
+      aria-hidden="true"
+    >
+      <span class="arena-melee-slash arena-melee-slash-a"></span>
+      <span class="arena-melee-slash arena-melee-slash-b"></span>
+      <span class="arena-melee-slash arena-melee-slash-c"></span>
     </div>
   `;
 }
@@ -417,6 +486,10 @@ function renderArena(session: GameSession): string {
       ${spawnMarkers}
       ${fogTiles}
       ${renderProjectiles(session, viewport)}
+      ${session.meleeAttacks
+        .map((attack) => renderMeleeAttack(attack, session, viewport))
+        .join("")}
+      ${renderEnemies(session, viewport)}
       ${renderPlayerOverlay(session, viewport)}
     </div>
   `;
@@ -481,6 +554,38 @@ function renderHud(session: GameSession): string {
   `;
 }
 
+function renderCollapsiblePanel(
+  panelId: keyof GameSession["collapsedPanels"],
+  eyebrow: string,
+  title: string,
+  content: string,
+  collapsed: boolean,
+): string {
+  return `
+    <aside class="panel control-panel collapsible-panel${collapsed ? " is-collapsed" : ""}">
+      <div class="collapsible-panel-header">
+        <div>
+          <p class="eyebrow">${eyebrow}</p>
+          <h3>${title}</h3>
+        </div>
+        <button
+          class="selector-button collapsible-toggle"
+          data-panel-toggle="${panelId}"
+          type="button"
+          aria-expanded="${collapsed ? "false" : "true"}"
+        >
+          ${collapsed ? "Expand" : "Minimize"}
+        </button>
+      </div>
+      ${
+        collapsed
+          ? ""
+          : `<div class="collapsible-panel-body">${content}</div>`
+      }
+    </aside>
+  `;
+}
+
 function renderMapGenerationPanel(session: GameSession): string {
   const selectedTemplate =
     session.catalog.indexes.mapTemplatesById[session.selectedMapTemplateId];
@@ -541,11 +646,12 @@ function renderMapGenerationPanel(session: GameSession): string {
         `
       : "";
 
-  return `
-    <aside class="panel control-panel">
+  return renderCollapsiblePanel(
+    "mapLab",
+    "Map Generation",
+    "Map Lab",
+    `
       <div class="selector-group">
-        <p class="eyebrow">Map Generation</p>
-        <h3>Map Lab</h3>
         <p class="selector-meta">
           Switch archetypes and reroll layouts without leaving the arena.
         </p>
@@ -580,19 +686,21 @@ function renderMapGenerationPanel(session: GameSession): string {
           Reroll Layout
         </button>
       </div>
-    </aside>
-  `;
+    `,
+    session.collapsedPanels.mapLab,
+  );
 }
 
 function renderCharacterPanel(session: GameSession): string {
   const selectedSpriteUrl =
     spriteUrlByKey[session.player.spriteKey] ?? spriteUrlByKey.turtle_glasses;
 
-  return `
-    <aside class="panel control-panel">
+  return renderCollapsiblePanel(
+    "character",
+    "Character",
+    "Driver Select",
+    `
       <div class="selector-group">
-        <p class="eyebrow">Character</p>
-        <h3>Driver Select</h3>
         <p class="selector-meta">
           Pick the turtle skin used for your player sprite.
         </p>
@@ -631,8 +739,9 @@ function renderCharacterPanel(session: GameSession): string {
           })
           .join("")}
       </div>
-    </aside>
-  `;
+    `,
+    session.collapsedPanels.character,
+  );
 }
 
 function renderWeaponPanel(session: GameSession): string {
@@ -650,11 +759,12 @@ function renderWeaponPanel(session: GameSession): string {
     ? itemSpriteUrlByKey[selectedWeapon.spriteKey]
     : undefined;
 
-  return `
-    <aside class="panel control-panel">
+  return renderCollapsiblePanel(
+    "weapon",
+    "Weapon",
+    "Armory",
+    `
       <div class="selector-group">
-        <p class="eyebrow">Weapon</p>
-        <h3>Armory</h3>
         <p class="selector-meta">
           Temporary weapon selection wired from content packs.
         </p>
@@ -722,12 +832,228 @@ function renderWeaponPanel(session: GameSession): string {
           })
           .join("")}
       </div>
-    </aside>
+    `,
+    session.collapsedPanels.weapon,
+  );
+}
+
+function renderModeMenu(): string {
+  return `
+    <main class="shell shell-menu">
+      <section class="panel mode-menu-panel">
+        <p class="eyebrow">Game Modes</p>
+        <h1>Turtle Arena</h1>
+        <p class="lede">
+          Pick a mode to enter the sandbox immediately or configure a pre-match loadout for levels and pvp.
+        </p>
+        <div class="mode-grid">
+          <button class="mode-card" data-mode-select="sandbox" type="button">
+            <strong>Sandbox</strong>
+            <span>Open arena with live tuning panels and free-form testing.</span>
+          </button>
+          <button class="mode-card" data-mode-select="levels" type="button">
+            <strong>Levels</strong>
+            <span>Choose your two-item loadout before the match starts.</span>
+          </button>
+          <button class="mode-card" data-mode-select="pvp" type="button">
+            <strong>PVP</strong>
+            <span>Set your build before the match, then swap between slots 1 and 2.</span>
+          </button>
+        </div>
+      </section>
+    </main>
+  `;
+}
+
+function renderSetupScreen(session: GameSession): string {
+  const weaponItems = getWeaponItems(session);
+  const slotLabels = ["Slot 1", "Slot 2"] as const;
+  const enemySection =
+    session.mode === "levels"
+      ? `
+          <section class="panel inset-panel">
+            <div class="selector-group">
+              <p class="eyebrow">Enemies</p>
+              <p class="selector-meta">
+                Add turtle enemies for this level. They use the same base stats and will seek the player.
+              </p>
+            </div>
+            <div class="enemy-grid">
+              ${weaponItems
+                .map((weapon) => {
+                  const spriteUrl = weapon.spriteKey
+                    ? itemSpriteUrlByKey[weapon.spriteKey]
+                    : undefined;
+                  const count = session.levelEnemyCounts[weapon.id] ?? 0;
+
+                  return `
+                    <div class="enemy-card">
+                      <div class="enemy-card-main">
+                        <span class="weapon-card-stage">
+                          ${
+                            spriteUrl
+                              ? `
+                                  <img
+                                    class="weapon-card-image"
+                                    src="${spriteUrl}"
+                                    alt="${weapon.name}"
+                                  />
+                                `
+                              : ""
+                          }
+                        </span>
+                        <div>
+                          <strong>${weapon.name} Turtle</strong>
+                          <p class="selector-meta">${count} selected</p>
+                        </div>
+                      </div>
+                      <div class="enemy-card-actions">
+                        <button class="selector-button" data-enemy-weapon="${weapon.id}" data-enemy-adjust="-1" type="button">-</button>
+                        <button class="selector-button is-active" data-enemy-weapon="${weapon.id}" data-enemy-adjust="1" type="button">+</button>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+          </section>
+        `
+      : "";
+
+  return `
+    <main class="shell shell-menu">
+      <section class="panel mode-setup-panel">
+        <div class="mode-setup-header">
+          <div>
+            <p class="eyebrow">${session.mode}</p>
+            <h2>Pre-Match Setup</h2>
+            <p class="selector-meta">
+              Choose two weapons now. During the match, swap between them with keys 1 and 2.
+            </p>
+          </div>
+          <div class="mode-setup-actions">
+            <button class="selector-button" data-back-menu type="button">Back</button>
+            <button class="selector-button is-active" data-start-match type="button">Start Match</button>
+          </div>
+        </div>
+        <section class="panel inset-panel">
+          <div class="selector-group">
+            <p class="eyebrow">Character</p>
+            <p class="selector-meta">Pick the turtle skin used for this run.</p>
+          </div>
+          <div class="character-grid">
+            ${session.availableSpriteKeys
+              .map((spriteKey) => {
+                const spriteUrl = spriteUrlByKey[spriteKey] ?? spriteUrlByKey.turtle_glasses;
+                const isActive = session.player.spriteKey === spriteKey;
+
+                return `
+                  <button
+                    class="character-card${isActive ? " is-active" : ""}"
+                    data-player-sprite="${spriteKey}"
+                    type="button"
+                  >
+                    <span class="character-card-stage">
+                      <img
+                        class="character-card-image"
+                        src="${spriteUrl}"
+                        alt="${labelForSprite(spriteKey)}"
+                      />
+                    </span>
+                    <span class="character-card-label">${labelForSprite(spriteKey)}</span>
+                  </button>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+        ${enemySection}
+        <div class="loadout-columns">
+          ${([0, 1] as const)
+            .map((slotIndex) => {
+              const equippedId = session.setupLoadoutWeaponIds[slotIndex];
+
+              return `
+                <section class="panel inset-panel">
+                  <div class="selector-group">
+                    <p class="eyebrow">${slotLabels[slotIndex]}</p>
+                    <p class="selector-meta">
+                      ${equippedId ? `Equipped: ${session.catalog.indexes.itemsById[equippedId]?.name ?? equippedId}` : "Choose a weapon"}
+                    </p>
+                  </div>
+                  <div class="weapon-grid">
+                    ${weaponItems
+                      .map((weapon) => {
+                        const isActive = equippedId === weapon.id;
+                        const spriteUrl = weapon.spriteKey
+                          ? itemSpriteUrlByKey[weapon.spriteKey]
+                          : undefined;
+
+                        return `
+                          <button
+                            class="weapon-card${isActive ? " is-active" : ""}"
+                            data-weapon-id="${weapon.id}"
+                            data-loadout-slot="${slotIndex}"
+                            type="button"
+                          >
+                            <span class="weapon-card-stage">
+                              ${
+                                spriteUrl
+                                  ? `
+                                      <img
+                                        class="weapon-card-image"
+                                        src="${spriteUrl}"
+                                        alt="${weapon.name}"
+                                      />
+                                    `
+                                  : ""
+                              }
+                            </span>
+                            <span class="weapon-card-label">${weapon.name}</span>
+                          </button>
+                        `;
+                      })
+                      .join("")}
+                  </div>
+                </section>
+              `;
+            })
+            .join("")}
+        </div>
+      </section>
+    </main>
   `;
 }
 
 export function renderGame(session: GameSession): string {
+  if (session.flow === "menu") {
+    return renderModeMenu();
+  }
+
+  if (session.flow === "setup") {
+    return renderSetupScreen(session);
+  }
+
   const isFullscreen = Boolean(document.fullscreenElement);
+  const modeLabel = session.mode === "sandbox" ? "Sandbox" : session.mode === "levels" ? "Levels" : "PVP";
+  const equippedLoadout =
+    session.mode === "sandbox"
+      ? ""
+      : `
+          <div class="arena-loadout-strip">
+            ${(session.setupLoadoutWeaponIds as [string | null, string | null])
+              .map((weaponId, index) => {
+                const weapon = weaponId ? session.catalog.indexes.itemsById[weaponId] : null;
+                return `
+                  <div class="loadout-chip${session.activeWeaponSlot === index ? " is-active" : ""}">
+                    <strong>${index + 1}</strong>
+                    <span>${weapon?.name ?? "Empty"}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        `;
 
   return `
     <main class="shell">
@@ -741,12 +1067,16 @@ export function renderGame(session: GameSession): string {
           <div class="arena-panel">
             <div class="arena-topbar">
               <div class="arena-heading">
-                <p class="eyebrow">Arena</p>
+                <p class="eyebrow">${modeLabel}</p>
                 <h2>${session.map.name}</h2>
+                ${equippedLoadout}
               </div>
-              <button class="selector-button" data-fullscreen-toggle type="button">
-                ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
-              </button>
+              <div class="arena-topbar-actions">
+                <button class="selector-button" data-back-menu type="button">Menu</button>
+                <button class="selector-button" data-fullscreen-toggle type="button">
+                  ${isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}
+                </button>
+              </div>
             </div>
             <div class="arena-grid" style="--arena-width:${viewportColumns * renderCellSize}px; --arena-height:${viewportRows * renderCellSize}px;">
               <div class="arena-overlay-top arena-overlay-top-left">

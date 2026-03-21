@@ -1,12 +1,19 @@
 import {
+  adjustLevelEnemyCount,
   attack,
+  goToMenu,
   rerollMap,
   setMapLayoutSize,
   setPlayerSprite,
+  setActiveWeaponSlot,
   setSelectedWeapon,
+  setSetupLoadoutWeapon,
   selectMapTemplate,
+  selectMode,
   setMovementKeyState,
   setMapDensity,
+  startMatch,
+  togglePanelCollapse,
   triggerRoll,
   toggleInventory,
 } from "./gameSession";
@@ -16,7 +23,7 @@ export function bindInput(
   session: GameSession,
   render: () => void,
 ): () => void {
-  function onClick(event: MouseEvent) {
+  function onPointerDown(event: PointerEvent) {
     const target = event.target;
 
     if (!(target instanceof HTMLElement)) {
@@ -24,15 +31,51 @@ export function bindInput(
     }
 
     const actionNode = target.closest<HTMLElement>(
-      "[data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-map-reroll], [data-fullscreen-toggle]",
+      "[data-mode-select], [data-back-menu], [data-start-match], [data-enemy-weapon], [data-enemy-adjust], [data-loadout-slot], [data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-panel-toggle], [data-map-reroll], [data-fullscreen-toggle]",
     );
 
     if (!actionNode) {
       return;
     }
 
+    if (actionNode.dataset.modeSelect) {
+      selectMode(
+        session,
+        actionNode.dataset.modeSelect as NonNullable<GameSession["mode"]>,
+      );
+      event.preventDefault();
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.backMenu !== undefined) {
+      goToMenu(session);
+      event.preventDefault();
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.startMatch !== undefined) {
+      startMatch(session);
+      event.preventDefault();
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.enemyWeapon && actionNode.dataset.enemyAdjust) {
+      adjustLevelEnemyCount(
+        session,
+        actionNode.dataset.enemyWeapon,
+        Number(actionNode.dataset.enemyAdjust),
+      );
+      event.preventDefault();
+      render();
+      return;
+    }
+
     if (actionNode.dataset.mapTemplate) {
       selectMapTemplate(session, actionNode.dataset.mapTemplate);
+      event.preventDefault();
       render();
       return;
     }
@@ -42,6 +85,7 @@ export function bindInput(
         session,
         actionNode.dataset.mapDensity as GameSession["selectedDensity"],
       );
+      event.preventDefault();
       render();
       return;
     }
@@ -51,24 +95,43 @@ export function bindInput(
         session,
         actionNode.dataset.mapLayoutSize as GameSession["selectedLayoutSize"],
       );
+      event.preventDefault();
       render();
       return;
     }
 
     if (actionNode.dataset.playerSprite) {
       setPlayerSprite(session, actionNode.dataset.playerSprite);
+      event.preventDefault();
       render();
       return;
     }
 
     if (actionNode.dataset.weaponId) {
-      setSelectedWeapon(session, actionNode.dataset.weaponId);
+      if (session.flow === "setup" && session.mode !== "sandbox") {
+        const slot = Number(actionNode.dataset.loadoutSlot ?? "0") === 1 ? 1 : 0;
+        setSetupLoadoutWeapon(session, slot, actionNode.dataset.weaponId);
+      } else {
+        setSelectedWeapon(session, actionNode.dataset.weaponId);
+      }
+      event.preventDefault();
+      render();
+      return;
+    }
+
+    if (actionNode.dataset.panelToggle) {
+      togglePanelCollapse(
+        session,
+        actionNode.dataset.panelToggle as keyof GameSession["collapsedPanels"],
+      );
+      event.preventDefault();
       render();
       return;
     }
 
     if (actionNode.dataset.mapReroll !== undefined) {
       rerollMap(session);
+      event.preventDefault();
       render();
       return;
     }
@@ -85,6 +148,7 @@ export function bindInput(
       } else {
         void arenaRoot.requestFullscreen();
       }
+      event.preventDefault();
     }
   }
 
@@ -93,6 +157,10 @@ export function bindInput(
   }
 
   function onKeyDown(event: KeyboardEvent) {
+    if (session.flow !== "match") {
+      return;
+    }
+
     const key = event.key.toLowerCase();
     switch (key) {
       case "w":
@@ -120,6 +188,18 @@ export function bindInput(
           return;
         }
         if (triggerRoll(session)) {
+          render();
+        }
+        event.preventDefault();
+        return;
+      case "1":
+        if (setActiveWeaponSlot(session, 0)) {
+          render();
+        }
+        event.preventDefault();
+        return;
+      case "2":
+        if (setActiveWeaponSlot(session, 1)) {
           render();
         }
         event.preventDefault();
@@ -162,6 +242,10 @@ export function bindInput(
   }
 
   function onKeyUp(event: KeyboardEvent) {
+    if (session.flow !== "match") {
+      return;
+    }
+
     const key = event.key.toLowerCase();
 
     switch (key) {
@@ -188,13 +272,13 @@ export function bindInput(
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
-  document.addEventListener("click", onClick);
+  document.addEventListener("pointerdown", onPointerDown);
   document.addEventListener("fullscreenchange", onFullscreenChange);
 
   return () => {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
-    document.removeEventListener("click", onClick);
+    document.removeEventListener("pointerdown", onPointerDown);
     document.removeEventListener("fullscreenchange", onFullscreenChange);
   };
 }

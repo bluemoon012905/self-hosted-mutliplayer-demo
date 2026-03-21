@@ -11,6 +11,8 @@ import type {
 } from "../../shared/domain/gameTypes";
 
 export type PlayerRole = "me" | "friend" | "enemy";
+export type GameMode = "sandbox" | "levels" | "pvp";
+export type GameFlow = "menu" | "setup" | "match";
 
 export interface PlayerRuntime {
   definition: PlayerDefinition;
@@ -36,6 +38,25 @@ export interface PlayerRuntime {
     x: number;
     y: number;
   };
+  attackAnimationRemainingMs: number;
+  role: PlayerRole;
+  spriteKey: string;
+}
+
+export interface EnemyRuntime {
+  id: string;
+  definition: PlayerDefinition;
+  weaponId: string;
+  position: {
+    x: number;
+    y: number;
+  };
+  radius: number;
+  facing: FacingDirection;
+  isMoving: boolean;
+  movementSpeed: number;
+  walkCycle: number;
+  attackAnimationRemainingMs: number;
   role: PlayerRole;
   spriteKey: string;
 }
@@ -57,8 +78,20 @@ export interface ProjectileRuntime {
   spriteKey: string;
 }
 
+export interface MeleeAttackRuntime {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  directionX: number;
+  directionY: number;
+  lifetimeMs: number;
+}
+
 export interface GameSession {
   catalog: GameCatalog;
+  flow: GameFlow;
+  mode: GameMode | null;
   selectedMapTemplateId: string;
   selectedDensity: MapDensity;
   selectedLayoutSize: MapLayoutSize;
@@ -67,8 +100,12 @@ export interface GameSession {
   availableSpriteKeys: string[];
   availableWeaponIds: string[];
   selectedWeaponId: string | null;
+  setupLoadoutWeaponIds: [string | null, string | null];
+  activeWeaponSlot: 0 | 1;
+  levelEnemyCounts: Record<string, number>;
   map: MapDefinition;
   player: PlayerRuntime;
+  enemies: EnemyRuntime[];
   input: {
     up: boolean;
     down: boolean;
@@ -78,6 +115,12 @@ export interface GameSession {
   inventoryItems: ItemDefinition[];
   attackLog: AttackEvent[];
   projectiles: ProjectileRuntime[];
+  meleeAttacks: MeleeAttackRuntime[];
+  collapsedPanels: {
+    mapLab: boolean;
+    character: boolean;
+    weapon: boolean;
+  };
 }
 
 export interface MapSelectorState {
