@@ -1,5 +1,6 @@
 # self-hosted-mutliplayer-demo
 
+https://bluemoon012905.github.io/self-hosted-mutliplayer-demo/
 Tank Trouble-style browser game scaffold with:
 
 - static client for player-vs-AI
