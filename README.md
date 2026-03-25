@@ -34,6 +34,7 @@ That lets you tweak stats, map layouts, and loadouts without rewriting gameplay 
 - `npm run build`
 - `npm run preview`
 - `npm run dev:server`
+- `npm start`
 
 ## Running the client correctly
 
@@ -44,6 +45,19 @@ Use:
 
 - `npm run dev` for local development at `http://localhost:5173`
 - `npm run preview` after `npm run build` to serve the production build
+
+For the single-server production-style flow used for PVP room testing:
+
+1. `npm run build`
+2. `npm start`
+
+That serves both the built frontend and the room API from `http://localhost:3001`.
+
+## Milestone Notes
+
+Current handoff / milestone status is tracked in:
+
+- [docs/milestone-2026-03-20.md](/home/moonbox/personal_project/self-hosted-mutliplayer-demo/docs/milestone-2026-03-20.md)
 
 ## Next build steps
 
