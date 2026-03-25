@@ -172,11 +172,7 @@ function defaultServerUrl(): string {
     return "http://localhost:3001";
   }
 
-  if (window.location.port === "3001") {
-    return window.location.origin;
-  }
-
-  return "http://localhost:3001";
+  return window.location.origin;
 }
 
 export function createGameSession(catalog: GameCatalog): GameSession {

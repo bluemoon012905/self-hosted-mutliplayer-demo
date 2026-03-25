@@ -13,11 +13,12 @@ export async function loadCatalog(
     return buildGameCatalog();
   }
 
-  const baseUrl = options.localServerUrl ?? "http://localhost:3001";
+  const baseUrl = options.localServerUrl?.replace(/\/+$/, "") ?? "";
   const response = await fetch(`${baseUrl}/catalog`);
 
   if (!response.ok) {
-    throw new Error(`Failed to load catalog from ${baseUrl}: ${response.status}`);
+    const target = baseUrl || "current origin";
+    throw new Error(`Failed to load catalog from ${target}: ${response.status}`);
   }
 
   return (await response.json()) as GameCatalog;

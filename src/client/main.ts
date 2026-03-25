@@ -31,13 +31,17 @@ const appRoot = app;
 appRoot.dataset.arenaRoot = "true";
 
 async function bootstrap() {
-  const localServerUrl =
-    window.location.port === "3001"
-      ? window.location.origin
-      : "http://localhost:3001";
+  const localServerUrl = window.location.origin;
   const catalog = await loadCatalog({
     mode: "local-server",
     localServerUrl,
+  }).catch((error) => {
+    console.warn(
+      "Falling back to embedded catalog because the local server is unavailable.",
+      error,
+    );
+
+    return loadCatalog({ mode: "embedded" });
   });
   const session = createGameSession(catalog);
 
