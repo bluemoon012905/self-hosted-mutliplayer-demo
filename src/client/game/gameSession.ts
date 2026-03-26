@@ -18,7 +18,6 @@ import type {
   GameSession,
   MeleeAttackRuntime,
   PlayerRuntime,
-  PvpRoomSnapshot,
   ProjectileRuntime,
 } from "./runtimeTypes";
 
@@ -167,14 +166,6 @@ function buildLevelEnemyCounts(weaponIds: string[]): Record<string, number> {
   return Object.fromEntries(weaponIds.map((weaponId) => [weaponId, 0]));
 }
 
-function defaultServerUrl(): string {
-  if (typeof window === "undefined") {
-    return "http://localhost:3001";
-  }
-
-  return window.location.origin;
-}
-
 export function createGameSession(catalog: GameCatalog): GameSession {
   const template = pickDefaultTemplate(catalog);
   const density =
@@ -212,17 +203,6 @@ export function createGameSession(catalog: GameCatalog): GameSession {
     attackLog: [],
     projectiles: [],
     meleeAttacks: [],
-    pvp: {
-      playerId: `player-${Math.random().toString(36).slice(2, 10)}`,
-      playerName: `Pilot-${Math.random().toString(36).slice(2, 6)}`,
-      serverUrl: defaultServerUrl(),
-      roomCodeInput: "",
-      passwordInput: "",
-      waitTimeSecondsInput: "20",
-      currentRoom: null,
-      errorMessage: null,
-      isBusy: false,
-    },
     collapsedPanels: {
       mapLab: false,
       character: false,
@@ -1129,8 +1109,6 @@ export function goToMenu(session: GameSession): void {
   session.player.attackCooldownRemainingMs = 0;
   session.player.attackChargeMs = 0;
   session.player.isChargingAttack = false;
-  session.pvp.currentRoom = null;
-  session.pvp.errorMessage = null;
 }
 
 export function selectMode(session: GameSession, mode: GameMode): void {
@@ -1143,7 +1121,6 @@ export function selectMode(session: GameSession, mode: GameMode): void {
   session.player.attackCooldownRemainingMs = 0;
   session.player.attackChargeMs = 0;
   session.player.isChargingAttack = false;
-  session.pvp.errorMessage = null;
   syncInventorySelection(session);
 
   if (mode === "sandbox") {
@@ -1163,43 +1140,6 @@ export function startMatch(session: GameSession): void {
   syncInventorySelection(session);
   session.flow = "match";
   rerollMap(session);
-}
-
-export function setPvpField(
-  session: GameSession,
-  field: "playerName" | "serverUrl" | "roomCodeInput" | "passwordInput" | "waitTimeSecondsInput",
-  value: string,
-): void {
-  session.pvp[field] = value;
-}
-
-export function setPvpBusy(session: GameSession, isBusy: boolean): void {
-  session.pvp.isBusy = isBusy;
-}
-
-export function setPvpError(session: GameSession, message: string | null): void {
-  session.pvp.errorMessage = message;
-}
-
-export function applyPvpRoomSnapshot(
-  session: GameSession,
-  room: PvpRoomSnapshot | null,
-): void {
-  session.pvp.currentRoom = room;
-
-  if (!room) {
-    return;
-  }
-
-  session.pvp.roomCodeInput = room.roomCode;
-  session.selectedMapTemplateId = room.mapTemplateId;
-  session.selectedDensity = room.density;
-  session.selectedLayoutSize = room.layoutSize;
-  session.pvp.waitTimeSecondsInput = String(room.waitTimeSeconds);
-}
-
-export function isPvpHost(session: GameSession): boolean {
-  return session.pvp.currentRoom?.hostPlayerId === session.pvp.playerId;
 }
 
 export function replayMatch(session: GameSession): void {

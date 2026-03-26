@@ -1,11 +1,9 @@
 import {
   adjustLevelEnemyCount,
   goToMenu,
-  isPvpHost,
   releasePrimaryAttack,
   replayMatch,
   rerollMap,
-  setPvpField,
   startPrimaryAttack,
   setMapLayoutSize,
   setPlayerSprite,
@@ -25,20 +23,9 @@ import {
 } from "./gameSession";
 import type { GameSession } from "./runtimeTypes";
 
-export interface BindInputHandlers {
-  onBackToMenuFromPvpRoom?: () => Promise<void> | void;
-  onCreatePvpRoom?: () => Promise<void> | void;
-  onJoinPvpRoom?: () => Promise<void> | void;
-  onLeavePvpRoom?: () => Promise<void> | void;
-  onTogglePvpReady?: () => Promise<void> | void;
-  onRefreshPvpRoom?: () => Promise<void> | void;
-  onUpdatePvpRoomConfig?: () => Promise<void> | void;
-}
-
 export function bindInput(
   session: GameSession,
   render: () => void,
-  handlers: BindInputHandlers = {},
 ): () => void {
   function onPointerDown(event: PointerEvent) {
     const target = event.target;
@@ -48,7 +35,7 @@ export function bindInput(
     }
 
     const actionNode = target.closest<HTMLElement>(
-      "[data-mode-select], [data-back-menu], [data-play-again], [data-start-match], [data-enemy-weapon], [data-enemy-adjust], [data-loadout-slot], [data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-panel-toggle], [data-map-reroll], [data-fullscreen-toggle], [data-pvp-create], [data-pvp-join], [data-pvp-leave], [data-pvp-ready], [data-pvp-refresh]",
+      "[data-mode-select], [data-back-menu], [data-play-again], [data-start-match], [data-enemy-weapon], [data-enemy-adjust], [data-loadout-slot], [data-map-template], [data-map-density], [data-map-layout-size], [data-player-sprite], [data-weapon-id], [data-panel-toggle], [data-map-reroll], [data-fullscreen-toggle]",
     );
 
     if (!actionNode) {
@@ -66,12 +53,6 @@ export function bindInput(
     }
 
     if (actionNode.dataset.backMenu !== undefined) {
-      if (session.mode === "pvp" && session.pvp.currentRoom) {
-        event.preventDefault();
-        void handlers.onBackToMenuFromPvpRoom?.();
-        return;
-      }
-
       goToMenu(session);
       event.preventDefault();
       render();
@@ -105,9 +86,6 @@ export function bindInput(
 
     if (actionNode.dataset.mapTemplate) {
       selectMapTemplate(session, actionNode.dataset.mapTemplate);
-      if (session.mode === "pvp" && session.pvp.currentRoom && isPvpHost(session)) {
-        void handlers.onUpdatePvpRoomConfig?.();
-      }
       event.preventDefault();
       render();
       return;
@@ -118,9 +96,6 @@ export function bindInput(
         session,
         actionNode.dataset.mapDensity as GameSession["selectedDensity"],
       );
-      if (session.mode === "pvp" && session.pvp.currentRoom && isPvpHost(session)) {
-        void handlers.onUpdatePvpRoomConfig?.();
-      }
       event.preventDefault();
       render();
       return;
@@ -131,9 +106,6 @@ export function bindInput(
         session,
         actionNode.dataset.mapLayoutSize as GameSession["selectedLayoutSize"],
       );
-      if (session.mode === "pvp" && session.pvp.currentRoom && isPvpHost(session)) {
-        void handlers.onUpdatePvpRoomConfig?.();
-      }
       event.preventDefault();
       render();
       return;
@@ -175,36 +147,6 @@ export function bindInput(
       return;
     }
 
-    if (actionNode.dataset.pvpCreate !== undefined) {
-      event.preventDefault();
-      void handlers.onCreatePvpRoom?.();
-      return;
-    }
-
-    if (actionNode.dataset.pvpJoin !== undefined) {
-      event.preventDefault();
-      void handlers.onJoinPvpRoom?.();
-      return;
-    }
-
-    if (actionNode.dataset.pvpLeave !== undefined) {
-      event.preventDefault();
-      void handlers.onLeavePvpRoom?.();
-      return;
-    }
-
-    if (actionNode.dataset.pvpReady !== undefined) {
-      event.preventDefault();
-      void handlers.onTogglePvpReady?.();
-      return;
-    }
-
-    if (actionNode.dataset.pvpRefresh !== undefined) {
-      event.preventDefault();
-      void handlers.onRefreshPvpRoom?.();
-      return;
-    }
-
     if (actionNode.dataset.fullscreenToggle !== undefined) {
       const arenaRoot = document.querySelector<HTMLElement>("[data-arena-root]");
 
@@ -223,26 +165,6 @@ export function bindInput(
 
   function onFullscreenChange() {
     render();
-  }
-
-  function onInput(event: Event) {
-    const target = event.target;
-
-    if (!(target instanceof HTMLInputElement)) {
-      return;
-    }
-
-    const field = target.dataset.pvpField;
-
-    if (!field) {
-      return;
-    }
-
-    setPvpField(
-      session,
-      field as "playerName" | "serverUrl" | "roomCodeInput" | "passwordInput" | "waitTimeSecondsInput",
-      target.value,
-    );
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -365,14 +287,12 @@ export function bindInput(
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   document.addEventListener("pointerdown", onPointerDown);
-  document.addEventListener("input", onInput);
   document.addEventListener("fullscreenchange", onFullscreenChange);
 
   return () => {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     document.removeEventListener("pointerdown", onPointerDown);
-    document.removeEventListener("input", onInput);
     document.removeEventListener("fullscreenchange", onFullscreenChange);
   };
 }

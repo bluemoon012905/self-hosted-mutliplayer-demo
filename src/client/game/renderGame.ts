@@ -977,7 +977,7 @@ function renderModeMenu(): string {
         <p class="eyebrow">Game Modes</p>
         <h1>Turtle Arena</h1>
         <p class="lede">
-          Pick a mode to enter the sandbox immediately or configure a pre-match loadout for levels and pvp.
+          Pick a mode to enter the sandbox immediately or configure a pre-match loadout for levels.
         </p>
         <div class="mode-grid">
           <button class="mode-card" data-mode-select="sandbox" type="button">
@@ -988,10 +988,6 @@ function renderModeMenu(): string {
             <strong>Levels</strong>
             <span>Choose your two-item loadout before the match starts.</span>
           </button>
-          <button class="mode-card" data-mode-select="pvp" type="button">
-            <strong>PVP</strong>
-            <span>Set your build before the match, then swap between slots 1 and 2.</span>
-          </button>
         </div>
       </section>
     </main>
@@ -999,10 +995,6 @@ function renderModeMenu(): string {
 }
 
 function renderSetupScreen(session: GameSession): string {
-  if (session.mode === "pvp") {
-    return renderPvpSetupScreen(session);
-  }
-
   const weaponItems = getWeaponItems(session);
   const slotLabels = ["Slot 1", "Slot 2"] as const;
   const mapSetupSection = `
@@ -1174,232 +1166,6 @@ function renderSetupScreen(session: GameSession): string {
   `;
 }
 
-function renderPvpSetupScreen(session: GameSession): string {
-  const room = session.pvp.currentRoom;
-  const hostPlayer = room?.players.find((player) => player.isHost) ?? null;
-  const localPlayer =
-    room?.players.find((player) => player.id === session.pvp.playerId) ?? null;
-  const isHost = room?.hostPlayerId === session.pvp.playerId;
-  const waitingLabel =
-    room?.status === "countdown" && room.countdownRemainingMs !== null
-      ? `Match starts in ${Math.ceil(room.countdownRemainingMs / 1000)}`
-      : room?.status === "active"
-        ? "Room active"
-        : "Waiting in lobby";
-  const mapSetupSection = room && isHost
-    ? `
-        <section class="panel inset-panel">
-          <div class="selector-group">
-            <p class="eyebrow">Room Rules</p>
-            <p class="selector-meta">
-              Host controls the arena rules. Any change unreadies both players.
-            </p>
-          </div>
-          <div class="pvp-input-row">
-            <label class="pvp-input-group">
-              <span>Prep Time (sec)</span>
-              <input
-                class="pvp-input"
-                data-pvp-field="waitTimeSecondsInput"
-                type="number"
-                min="5"
-                max="120"
-                value="${escapeHtml(session.pvp.waitTimeSecondsInput)}"
-              />
-            </label>
-          </div>
-          ${renderMapGenerationControls(session)}
-        </section>
-      `
-    : room
-      ? `
-          <section class="panel inset-panel">
-            <div class="selector-group">
-              <p class="eyebrow">Room Rules</p>
-              <p class="selector-meta">
-                Host: ${hostPlayer?.name ?? "Unknown"} · ${room.mapTemplateId} · ${room.density} · ${room.layoutSize} · prep ${room.waitTimeSeconds}s
-              </p>
-            </div>
-          </section>
-        `
-      : "";
-
-  return `
-    <main class="shell shell-menu">
-      <section class="panel mode-setup-panel">
-        <div class="mode-setup-header">
-          <div>
-            <p class="eyebrow">pvp</p>
-            <h2>Room Lobby</h2>
-            <p class="selector-meta">
-              Create a room or join one by code. Once two players are ready, the server starts a 10 second countdown.
-            </p>
-          </div>
-          <div class="mode-setup-actions">
-            <button class="selector-button" data-back-menu type="button">Back</button>
-            ${
-              room
-                ? `<button class="selector-button" data-pvp-refresh type="button">Refresh</button>`
-                : ""
-            }
-          </div>
-        </div>
-
-        <section class="panel inset-panel">
-          <div class="pvp-join-grid">
-            <label class="pvp-input-group">
-              <span>Server URL</span>
-              <input class="pvp-input" data-pvp-field="serverUrl" type="text" value="${escapeHtml(session.pvp.serverUrl)}" />
-            </label>
-            <label class="pvp-input-group">
-              <span>Player Name</span>
-              <input class="pvp-input" data-pvp-field="playerName" type="text" maxlength="24" value="${escapeHtml(session.pvp.playerName)}" />
-            </label>
-            <label class="pvp-input-group">
-              <span>Room Code</span>
-              <input class="pvp-input pvp-input-code" data-pvp-field="roomCodeInput" type="text" maxlength="8" value="${escapeHtml(session.pvp.roomCodeInput)}" />
-            </label>
-            <label class="pvp-input-group">
-              <span>Password</span>
-              <input class="pvp-input" data-pvp-field="passwordInput" type="password" maxlength="32" value="${escapeHtml(session.pvp.passwordInput)}" />
-            </label>
-          </div>
-          <div class="mode-setup-actions">
-            <button class="selector-button is-active" data-pvp-create type="button" ${session.pvp.isBusy ? "disabled" : ""}>Create Room</button>
-            <button class="selector-button" data-pvp-join type="button" ${session.pvp.isBusy ? "disabled" : ""}>Join Room</button>
-            ${
-              room
-                ? `<button class="selector-button" data-pvp-leave type="button" ${session.pvp.isBusy ? "disabled" : ""}>Leave Room</button>`
-                : ""
-            }
-          </div>
-          ${
-            session.pvp.errorMessage
-              ? `<p class="pvp-error">${escapeHtml(session.pvp.errorMessage)}</p>`
-              : ""
-          }
-        </section>
-
-        ${
-          room
-            ? `
-                <section class="panel inset-panel">
-                  <div class="pvp-room-header">
-                    <div>
-                      <p class="eyebrow">Room ${room.roomCode}</p>
-                      <h3>Shared Lobby</h3>
-                      <p class="selector-meta">${waitingLabel}</p>
-                    </div>
-                    <button class="selector-button${localPlayer?.ready ? "" : " is-active"}" data-pvp-ready type="button" ${session.pvp.isBusy ? "disabled" : ""}>
-                      ${localPlayer?.ready ? "Unready" : "Ready"}
-                    </button>
-                  </div>
-                  <div class="pvp-player-list">
-                    ${room.players
-                      .map(
-                        (player) => `
-                          <div class="pvp-player-card${player.id === session.pvp.playerId ? " is-local" : ""}">
-                            <strong>${escapeHtml(player.name)}</strong>
-                            <span>${player.isHost ? "Host" : "Guest"}</span>
-                            <span>${player.ready ? "Ready" : "Not Ready"}</span>
-                          </div>
-                        `,
-                      )
-                      .join("")}
-                  </div>
-                </section>
-                ${mapSetupSection}
-                <section class="panel inset-panel">
-                  <div class="selector-group">
-                    <p class="eyebrow">Character</p>
-                    <p class="selector-meta">Sprite and two-slot loadout stay local for now.</p>
-                  </div>
-                  <div class="character-grid">
-                    ${session.availableSpriteKeys
-                      .map((spriteKey) => {
-                        const spriteUrl = spriteUrlByKey[spriteKey] ?? spriteUrlByKey.turtle_glasses;
-                        const isActive = session.player.spriteKey === spriteKey;
-
-                        return `
-                          <button
-                            class="character-card${isActive ? " is-active" : ""}"
-                            data-player-sprite="${spriteKey}"
-                            type="button"
-                          >
-                            <span class="character-card-stage">
-                              <img
-                                class="character-card-image"
-                                src="${spriteUrl}"
-                                alt="${labelForSprite(spriteKey)}"
-                              />
-                            </span>
-                            <span class="character-card-label">${labelForSprite(spriteKey)}</span>
-                          </button>
-                        `;
-                      })
-                      .join("")}
-                  </div>
-                </section>
-                <div class="loadout-columns">
-                  ${([0, 1] as const)
-                    .map((slotIndex) => {
-                      const equippedId = session.setupLoadoutWeaponIds[slotIndex];
-
-                      return `
-                        <section class="panel inset-panel">
-                          <div class="selector-group">
-                            <p class="eyebrow">Slot ${slotIndex + 1}</p>
-                            <p class="selector-meta">
-                              ${equippedId ? `Equipped: ${session.catalog.indexes.itemsById[equippedId]?.name ?? equippedId}` : "Choose a weapon"}
-                            </p>
-                          </div>
-                          <div class="weapon-grid">
-                            ${getWeaponItems(session)
-                              .map((weapon) => {
-                                const isActive = equippedId === weapon.id;
-                                const spriteUrl = weapon.spriteKey
-                                  ? itemSpriteUrlByKey[weapon.spriteKey]
-                                  : undefined;
-
-                                return `
-                                  <button
-                                    class="weapon-card${isActive ? " is-active" : ""}"
-                                    data-weapon-id="${weapon.id}"
-                                    data-loadout-slot="${slotIndex}"
-                                    type="button"
-                                  >
-                                    <span class="weapon-card-stage">
-                                      ${
-                                        spriteUrl
-                                          ? `
-                                              <img
-                                                class="weapon-card-image"
-                                                src="${spriteUrl}"
-                                                alt="${weapon.name}"
-                                              />
-                                            `
-                                          : ""
-                                      }
-                                    </span>
-                                    <span class="weapon-card-label">${weapon.name}</span>
-                                  </button>
-                                `;
-                              })
-                              .join("")}
-                          </div>
-                        </section>
-                      `;
-                    })
-                    .join("")}
-                </div>
-              `
-            : ""
-        }
-      </section>
-    </main>
-  `;
-}
-
 export function renderGame(session: GameSession): string {
   if (session.flow === "menu") {
     return renderModeMenu();
@@ -1410,7 +1176,7 @@ export function renderGame(session: GameSession): string {
   }
 
   const isFullscreen = Boolean(document.fullscreenElement);
-  const modeLabel = session.mode === "sandbox" ? "Sandbox" : session.mode === "levels" ? "Levels" : "PVP";
+  const modeLabel = session.mode === "sandbox" ? "Sandbox" : "Levels";
   const showSandboxControls = session.mode === "sandbox";
   const equippedLoadout =
     session.mode === "sandbox"

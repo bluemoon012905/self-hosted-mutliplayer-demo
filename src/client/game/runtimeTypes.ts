@@ -11,40 +11,8 @@ import type {
 } from "../../shared/domain/gameTypes";
 
 export type PlayerRole = "me" | "friend" | "enemy";
-export type GameMode = "sandbox" | "levels" | "pvp";
+export type GameMode = "sandbox" | "levels";
 export type GameFlow = "menu" | "setup" | "match" | "gameOver";
-export type PvpRoomStatus = "lobby" | "countdown" | "active";
-
-export interface PvpRoomPlayer {
-  id: string;
-  name: string;
-  ready: boolean;
-  isHost: boolean;
-}
-
-export interface PvpRoomSnapshot {
-  roomCode: string;
-  status: PvpRoomStatus;
-  hostPlayerId: string;
-  mapTemplateId: string;
-  density: MapDensity;
-  layoutSize: MapLayoutSize;
-  waitTimeSeconds: number;
-  countdownRemainingMs: number | null;
-  players: PvpRoomPlayer[];
-}
-
-export interface PvpLobbyState {
-  playerId: string;
-  playerName: string;
-  serverUrl: string;
-  roomCodeInput: string;
-  passwordInput: string;
-  waitTimeSecondsInput: string;
-  currentRoom: PvpRoomSnapshot | null;
-  errorMessage: string | null;
-  isBusy: boolean;
-}
 
 export interface PlayerRuntime {
   definition: PlayerDefinition;
@@ -163,7 +131,6 @@ export interface GameSession {
   attackLog: AttackEvent[];
   projectiles: ProjectileRuntime[];
   meleeAttacks: MeleeAttackRuntime[];
-  pvp: PvpLobbyState;
   collapsedPanels: {
     mapLab: boolean;
     character: boolean;

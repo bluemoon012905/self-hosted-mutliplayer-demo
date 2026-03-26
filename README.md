@@ -5,14 +5,12 @@ Tank Trouble-style browser game scaffold with:
 
 - static client for player-vs-AI
 - shared game definitions and factories
-- optional local server for future multiplayer/authoritative state
 
 ## Structure
 
 - `index.html`: static app entrypoint
 - `src/client`: browser app
 - `src/shared`: game domain, decoders, and factories
-- `src/server`: optional local server entrypoint
 - `src/content`: raw config definitions for characters, items, and maps
 
 ## Why the decoder/factory layer exists
@@ -34,8 +32,6 @@ That lets you tweak stats, map layouts, and loadouts without rewriting gameplay 
 - `npm run dev`
 - `npm run build`
 - `npm run preview`
-- `npm run dev:server`
-- `npm start`
 
 ## Running the client correctly
 
@@ -46,13 +42,6 @@ Use:
 
 - `npm run dev` for local development at `http://localhost:5173`
 - `npm run preview` after `npm run build` to serve the production build
-
-For the single-server production-style flow used for PVP room testing:
-
-1. `npm run build`
-2. `npm start`
-
-That serves both the built frontend and the room API from `http://localhost:3001`.
 
 ## Milestone Notes
 
@@ -65,4 +54,3 @@ Current handoff / milestone status is tracked in:
 - add maze generation
 - add tank movement and projectile simulation
 - add AI controller
-- add local multiplayer state sync over websocket or SSE + HTTP
